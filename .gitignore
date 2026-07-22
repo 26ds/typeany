@@ -6,6 +6,10 @@ yarn-debug.log*
 yarn-error.log*
 firebase-debug.log*
 
+# 例外:项目里程碑日志纳入版本控制(上面的宽泛 `logs` 规则会误伤 docs/logs/)
+!docs/logs/
+!docs/logs/**
+
 # Firebase cache
 .firebase/
 
