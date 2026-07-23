@@ -33,5 +33,7 @@
 ## 仓库与环境(M1a 已完成迁移)
 - 工作仓库 = `Desktop/打字项目/typeany/`(fork 自 monkeytypegame/monkeytype,GPL-3.0,独立 .git;远程 origin=26ds/typeany、upstream=monkeytypegame)。**新会话在此目录打开**,读本文件即可继续。
 - `WORKORDER.md`/`CLAUDE.md`/`docs/`/`design/` 已迁入本仓库根,以本 CLAUDE.md 为准;上游 `AGENTS.md` 原位保留、上游开发须知转存 `docs/UPSTREAM-DEV-NOTES.md`,均仅作参考。
-- 环境与启动:Node **24.11.0**(`.nvmrc` → `nvm use`)、pnpm **10.28.1**(`packageManager`,corepack);仓库根 `pnpm install` → `pnpm dev-fe` → http://localhost:3000;`frontend/src/ts/constants/firebase-config.ts` 字段留空 = 账号禁用 = 游客模式。
+- 环境与启动:Node **24.11.0**(`.nvmrc` → `nvm use`)、pnpm **10.28.1**(`packageManager` 自管,无需 corepack);仓库根 `pnpm install` → `pnpm dev-fe` → http://localhost:3000。
+- firebase 配置:`firebase-config.ts`(dev)与 `firebase-config-live.ts`(prod alias 目标)均已提交**空白版** = 游客模式,开箱即用;真实密钥 M6 用 env 注入,不进代码库。
+- 部署:前端(GPL)→ **Vercel**(`vercel.json`:root=仓库根、build=`pnpm build-fe`、output=`frontend/dist`、SPA rewrite→index.html)。**生产构建需 env `RECAPTCHA_SITE_KEY`**(占位即可;M1b 移除 recaptcha 后可去除)。Vercel 的 Node 版本需 24。
 - **勿把本项目提交进外层 Desktop git 仓库。**

@@ -90,6 +90,11 @@ serviceAccountKey*.json
 frontend/src/ts/constants/firebase-config.ts
 frontend/src/ts/constants/firebase-config-live.ts
 
+# 例外:本 fork 默认提交「空白」firebase 配置(游客模式),让 dev/prod/CI/Vercel 构建开箱即用;
+# 真实密钥在 M6 用 env 注入,不进代码库。(-live 为生产构建 alias 目标)
+!frontend/src/ts/constants/firebase-config.ts
+!frontend/src/ts/constants/firebase-config-live.ts
+
 #generated files
 dist/
 frontend/public/

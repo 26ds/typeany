@@ -68,4 +68,15 @@
 
 **品牌串**(M1c)
 - 核心:**`src/html/head.html`**(`<title>`、meta description 关键词表、og:*、twitter、preconnect api.monkeytype.com、mtsocial.png)。
-- 其余:`ts/{db,auth,ui,firebase,sentry}.ts`、`ts/ape/*`(API 层,多为后端 URL/标识,随 M6 处理);manifest/favicon 待 M1c 落地时定位(可能构建生成)。
+- 其余:`ts/{db,auth,ui,firebase,sentry}.ts`、`ts/ape/*`(API 层,多为后端 URL/标识,随 M6 处理)。
+- 静态资源(manifest.json/favicon/robots/sitemap/images/sounds)在 **`frontend/static/`**(vite `publicDir`);生产构建产物在 `frontend/dist`(index.html + 5 个独立 HTML + PWA sw.js)。
+
+---
+
+## M1 旁支 — 部署准备(Vercel,2026-07-22)
+
+- 实现:验证生产构建 `pnpm build-fe`(前置:env `RECAPTCHA_SITE_KEY` 占位 + `firebase-config-live.ts` 存在)→ 输出 `frontend/dist`;写 `vercel.json`(install=`pnpm install`、build=`pnpm build-fe`、output=`frontend/dist`、SPA rewrite `/(.*)`→`/index.html`);提交空白 `firebase-config.ts`/`firebase-config-live.ts`(.gitignore 加放行)让构建开箱即用。
+- 关键发现:生产 `vite.config.ts` 把 `constants/firebase-config` alias 到 `-live`;`!isDevelopment` 时强制要求 `RECAPTCHA_SITE_KEY`(且设了 `SENTRY` 才要 `SENTRY_AUTH_TOKEN`,我们不设)。
+- Vercel import 设置:Root=仓库根、Framework=Other、Env `RECAPTCHA_SITE_KEY`=占位/Google 测试 key、Node=24。
+- 未完:用户自建 Vercel 账号并 import(账号/授权类不可代做);Supabase 空项目备用(M6 接线)。
+- 注:reCAPTCHA/Sentry/analytics 将在 M1b 移除,届时该 build env 依赖可去除。
