@@ -105,3 +105,18 @@
   - logo/标题仍为 "monkeytype" = M1c 重品牌处理,本期不动。
   - `ads`/`sentry`/`analytics` 三模块与 `vendor-sentry` chunk 仍在仓库/构建产物中(惰性、不运行);彻底删模块与瘦身随 M2/M3 顺手做。
 - 下一步:M1c 重品牌 + Ink Aurora 基础主题(清 monkeytype 品牌串、默认主题、GPL README)。
+
+---
+
+## M1b 加固 — 永久零广告(2026-07-23)
+
+- 背景:用户明确「不要任何广告」。M1b 仅把 `ads` 默认改 `off`,但设置页仍有开关、命令面板/旧 localStorage/导入预设仍能改回 → 不够。此次做到**恒零广告**。
+- 实现:
+  - `config/metadata.tsx` 的 `ads.overrideValue` 从「dev 才 off」改为**所有环境恒返回 `"off"`**。这是配置系统的强制覆盖钩子,`Config.ads` 的**生效值**永远是 off,与 localStorage 存值/预设/命令面板无关 → `ad-controller` 的 `reinstate`/`renderResult` 全走 `Config.ads==="off"` 早退,第三方广告 SDK(PW/EG)**永不加载**。
+  - `components/pages/settings/SettingsPage.tsx`:删 danger zone 的 `<SearchableAutoSetting key="ads" />`(设置页不再有广告开关)。
+  - `components/modals/CookiesModal.tsx`:删「advertising」同意区块(调 ad CMP `showConsentPopup`)及随之孤儿的 import(`showConsentPopup`、`showErrorNotification`)。
+- 交互逻辑:`overrideValue` 是单点硬保证;设置项与 cookie 广告同意区块的删除是配套清理。选择配置层锁死而非改 `ad-controller` 内部,是因后者 gut 会让 `init`/`checkAdblock`/EG/PW 变未用函数,触发 oxlint 连锁 → 配置层零连锁。
+- 关键文件:`config/metadata.tsx`、`components/pages/settings/SettingsPage.tsx`、`components/modals/CookiesModal.tsx`。
+- 计划外变更:无(深化 M1b 广告移除;已在 WORKORDER「已定决策」记入永久零广告)。
+- 已知问题 / 未完:`ad-controller.ts` 与 EG/PW/video-ad-popup 模块及广告容器 DOM 仍在(惰性、恒不触发);彻底删随后期。
+- 下一步:M1c 重品牌 + Ink Aurora 基础主题。

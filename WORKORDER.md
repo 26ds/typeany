@@ -14,6 +14,7 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 |---|---|
 | 基座 | **fork monkeytype**(GPL-3.0)。前端 fork 保持 GPL 开源(公开 repo);后端自研、闭源(AI 解析、账号、存档、付费) |
 | 商业化 | 允许收费。收费点在后端:AI 解析(扫描版/大文件)、云存档、中文支持等 |
+| 广告 | **永久零广告**(用户定 2026-07-23)。删 ads 设置项;配置层 `overrideValue` 恒返回 `"off"`,`ad-controller` 永不初始化(旧 localStorage/预设/命令面板均无法开启)。变现只靠后端付费,不上任何广告 |
 | 商标 | 移除 Monkeytype 名称与 logo。**候选名 TypeAny**(开发代号先用;风险:TypeAnywhere 同品类、Anytype 镜像名;上线前查域名商标。备选 TypeBook / TypeThrough / TypeTome) |
 | 中文 | M5。先英文跑通,引擎预留中文接口 |
 | 登录 | 游客可玩 random(成绩存本地);上传书 / 云端存档需 Google 登录 |
