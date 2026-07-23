@@ -1,4 +1,4 @@
-# TypeAny · WORKORDER(工程总纲 v0.3,2026-07-21)
+# TypeAny · WORKORDER(工程总纲 v0.4,2026-07-22)
 
 > 本文件是整个工程的唯一权威:产品 spec、已定决策、分期。每个里程碑的实施细节在 `docs/plans/M<n>.md`,完工日志在 `docs/logs/M<n>-LOG.md`,工作规则在 `CLAUDE.md`,视觉 token 在 `design/README.md`。
 
@@ -19,6 +19,8 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 | 登录 | 游客可玩 random(成绩存本地);上传书 / 云端存档需 Google 登录 |
 | Landing 文案 | **`Upload & Type` / `Random Mode`** |
 | 设计语言 | **全站默认玻璃拟态**(毛玻璃透明卡片 + 按钮 + 背景);弹窗出现时背景整体模糊;**其余 setting 项可沿用 monkeytype 现有**。**视觉定稿:B「Ink Aurora」**(吸收 C 的高对比度与 A 的光标动效),全部 token 以 `design/README.md` 为准 |
+| 后端 / DB / Auth | **Supabase**(用户 2026-07-22 已建项目;Postgres + Auth + Storage;取代原 fork 自带 Firebase+Mongo+Redis)→ M6 接线 |
+| 部署 | 前端(GPL 静态)→ **Vercel**(`vercel.json` 已配;import 时 Application Preset 选 **Other**,避开 monorepo 多服务检测,勿选 Vite/Services);后端 API 部署 M6 定 |
 
 ## 页面流
 
@@ -134,13 +136,13 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 ## 技术栈
 
 - 前端:monkeytype fork(**SolidJS + TypeScript + Vite 8 + Tailwind 4 + Chart.js**;Node 24 / pnpm / turbo monorepo)+ Ink Aurora 玻璃主题
-- 后端(自研闭源):Node + Claude API;账号/存储候选:fork 自带(Firebase+Mongo+Redis,运维重)vs 换 Supabase(需接线)→ M6 定
+- 后端(自研闭源):Node + Claude API;账号 / DB / 存储 = **Supabase**(Postgres + Auth + Storage;取代 fork 自带 Firebase+Mongo+Redis)→ M6 接线
 - PK:WebSocket(Socket.io,参考 PType)
-- 部署:前端 Vercel;后端待定
+- 部署:前端 → **Vercel**(`vercel.json` 已配,静态游客站;Application Preset=Other);后端 API → Supabase Edge Functions 或独立 Node host(M6 定)
 
 ## 分期
 
-- **M1** fork + 大裁剪(quote/zen/皇冠/info/铃铛/广告/排行榜/Sentry)+ 重品牌 + landing 双入口 + 游客模式 → 详见 `docs/plans/M1.md`
+- **M1** fork + 大裁剪(quote/zen/皇冠/info/铃铛/广告/排行榜/Sentry)+ 重品牌 + landing 双入口 + 游客模式 → 详见 `docs/plans/M1.md`。**进度:M1a ✅(基座/环境/代码地图/首推)+ 部署管线 ✅;M1b/c/d 未开工**
 - **M2** custom 弹窗裁剪 + saved texts 升级书架
 - **M3** 书籍层:指针连续性引擎、双进度条、上/下块箭头、双结算、顺序 + 章节/页随机、符号跳过;热力图本地记数开始
 - **M4** 解析管道:本地 + AI 清洗/OCR + 章节识别 + 仿版式选页弹窗(选文本→预览→开始)
@@ -149,14 +151,14 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 - **M7** PK 实时对战
 - UI 视觉:Ink Aurora 基调已定;逐页线框未出(见"待确认")
 
-## 待确认 / 未拍板(compact 前快照,2026-07-21)
+## 待确认 / 未拍板(compact 前快照,2026-07-22)
 
 1. **双结算按钮触发时机**:仅"提前结束"用,还是每轮自然结束也要二选一?(暂按"常驻、随时可按"设计)
 2. **产品名最终拍板**:TypeAny 现为开发代号(风险:TypeAnywhere 同品类、Anytype 镜像名);备选 TypeBook / TypeThrough / TypeTome;上线前须查域名与商标
 3. **words filter**:默认删,有异议再翻案
 4. **付费方案未拍板**:仅有市场基准(TypeLit $5/月、Typersguild $4.99/月);哪些功能进付费墙(AI 解析扫描版/大文件?云存档?PK?)、定价、支付渠道 → 最迟 M6 前定
 5. **UI 逐页线框未出**:design/README.md 已定基调与全部 token,但其 §10 所列(逐页文字线框、选页弹窗三栏尺寸、书籍打字页快捷键、响应式断点、组件 token)未完成 → 用户继续与外部 AI 迭代,或开发时按基线自行落地并回填 design/
-6. **后端账号/存储选型**(fork 自带 Firebase+Mongo vs Supabase)→ M6 决
+6. ~~后端账号/存储选型~~ → ✅ **已决:Supabase**(见「已定决策」;M6 接线)
 7. **快捷键体系**:M1 沿用 monkeytype 默认(tab+enter 重开等);书籍模式专属快捷键(上/下段、双结算、选页弹窗)在 M3 设计
 
 ## 法务备忘

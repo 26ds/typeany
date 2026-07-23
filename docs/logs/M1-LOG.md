@@ -80,3 +80,5 @@
 - Vercel import 设置:Root=仓库根、Framework=Other、Env `RECAPTCHA_SITE_KEY`=占位/Google 测试 key、Node=24。
 - 未完:用户自建 Vercel 账号并 import(账号/授权类不可代做);Supabase 空项目备用(M6 接线)。
 - 注:reCAPTCHA/Sentry/analytics 将在 M1b 移除,届时该 build env 依赖可去除。
+- 用户侧(2026-07-22):Vercel + Supabase 均已注册。Vercel import 遇 monorepo 多服务检测(自动选「Services」preset,欲连 backend 一起部署)→ 指引改 **Application Preset = Other**(单应用只部署前端;勿选 Vite,否则不经 turbo 建 packages 会失败);Project Name 建议 `typeany`(此项目=前端)。**部署结果 / live URL 待用户确认回填。**
+- 决策:后端 / DB / Auth 定为 **Supabase**(WORKORDER 已从待确认 #6 移入已定决策)。
