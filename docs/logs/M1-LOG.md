@@ -82,3 +82,26 @@
 - 注:reCAPTCHA/Sentry/analytics 将在 M1b 移除,届时该 build env 依赖可去除。
 - 用户侧(2026-07-22):Vercel + Supabase 均已注册。Vercel import 遇 monorepo 多服务检测(自动选「Services」preset,欲连 backend 一起部署)→ 指引改 **Application Preset = Other**(单应用只部署前端;勿选 Vite,否则不经 turbo 建 packages 会失败);Project Name 建议 `typeany`(此项目=前端)。**部署结果 / live URL 待用户确认回填。**
 - 决策:后端 / DB / Auth 定为 **Supabase**(WORKORDER 已从待确认 #6 移入已定决策)。
+
+---
+
+## M1b — 界面裁剪(2026-07-23)
+
+- 实现(逐项对照 WORKORDER「Random 页裁剪表」+ M1 计划移除清单):
+  - **模式按钮删 quote / zen**:桌面 `TestConfig.tsx` 的 `Mode` modeOptions 与移动 `MobileTestConfigModal.tsx` 的 `modes` 均改为 `["time","words","custom"]`。
+  - **顶栏删皇冠(排行榜)/ info / 通知铃铛**:`Nav.tsx` 移除三个 `Button` 及随之失效的 import(`prefetchAboutPage`/`prefetchLeaderboardPage`/`NotificationBubble`/`showModal`)与 `showAlertsNotificationBubble` memo;保留 键盘/设置/账号/XP。
+  - **广告位**:默认配置 `default-config.ts` `ads: "result"` → `"off"`(关掉结算页广告位);`ready.ts` 移除 merch 横幅(`MerchBanner.showIfNotClosedBefore()` 及其 import)。
+  - **Sentry / 第三方统计**:`cookies.ts` 的 `activateWhatsAccepted()` 清空(原按 cookie 同意调 `activateAnalytics()`/`activateSentry()`)→ 两者永不激活;移除对应 import(含 `isProfilerMode`)。
+  - **捐赠 / 社交入口**:`Footer.tsx` 删 support(捐赠)、github、discord、twitter;保留 contact / terms / security / privacy / 主题 / 版本。
+- 交互逻辑 / 边界:
+  - 策略=**隐藏入口不深删**。quote/zen 面板组件(`Mode2Quote` 等)与 `/leaderboards`·`/about` 路由、`ad-controller`·`analytics-controller`·`sentry` 模块**均原样保留**,仅切断入口/激活;避免连锁破坏,深删留 M2/M3。
+  - Sentry 已功能性移除:错误上报点(`config/validation.ts`、`test/test-logic.ts`、`auth.tsx`)经 `sentry.ts` 里**动态 `import("@sentry/browser")`**,无 `activateSentry()`→ 永不 init、事件丢弃;`vendor-sentry` 是懒加载 chunk,游客流程不加载。
+  - `analytics-controller.log()` 未激活时 `analytics===undefined`→ `logEvent` 抛错被 try/catch 吞掉,空转无副作用,故 test-logic/commandline 的埋点调用点无需改。
+- 关键文件:`components/pages/test/TestConfig.tsx`、`components/modals/MobileTestConfigModal.tsx`、`components/layout/header/Nav.tsx`、`components/layout/footer/Footer.tsx`、`constants/default-config.ts`、`ready.ts`、`cookies.ts`。
+- 验证:`pnpm lint-fe`(oxlint --type-aware --type-check)0 error/0 warning(588 文件);`pnpm build-fe` 成功(32s,PWA 产物齐);浏览器 localhost:3000 实测——顶栏仅键盘/设置/账号,配置条仅 time/words/custom(+punc/num、字数档、tools),页脚仅 contact/terms/security/privacy,无 merch 横幅。
+- 计划外变更:无(均在 M1b 清单内)。
+- 已知问题 / 未完:
+  - **cookie 同意弹窗仍在**(首次加载弹出):其 gated 的 analytics/sentry 已空转、ads 已默认关,弹窗已无实际作用。未在 M1b 清单内,留 M1c/M2 决定是否整体移除(游客+localStorage 站点或可免同意)。
+  - logo/标题仍为 "monkeytype" = M1c 重品牌处理,本期不动。
+  - `ads`/`sentry`/`analytics` 三模块与 `vendor-sentry` chunk 仍在仓库/构建产物中(惰性、不运行);彻底删模块与瘦身随 M2/M3 顺手做。
+- 下一步:M1c 重品牌 + Ink Aurora 基础主题(清 monkeytype 品牌串、默认主题、GPL README)。

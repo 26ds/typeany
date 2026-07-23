@@ -16,7 +16,7 @@ import { AnimatedModal } from "../common/AnimatedModal";
 import { Button } from "../common/Button";
 import { Separator } from "../common/Separator";
 
-const modes: Mode[] = ["time", "words", "quote", "zen", "custom"];
+const modes: Mode[] = ["time", "words", "custom"];
 const times = [15, 30, 60, 120];
 const wordCounts = [10, 25, 50, 100];
 

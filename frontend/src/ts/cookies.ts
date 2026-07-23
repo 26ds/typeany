@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { createSignal } from "solid-js";
 import { LocalStorageWithSchema } from "./utils/local-storage-with-schema";
-import { activateAnalytics } from "./controllers/analytics-controller";
-import { activateSentry } from "./sentry";
-import { isProfilerMode } from "./utils/profiler-mode";
 
 const AcceptedCookiesSchema = z
   .object({
@@ -36,11 +33,7 @@ export function setAcceptedCookies(accepted: AcceptedCookies): void {
 }
 
 export function activateWhatsAccepted(): void {
-  const accepted = getAcceptedCookies();
-  if (accepted?.analytics) {
-    activateAnalytics();
-  }
-  if (accepted?.sentry && !isProfilerMode()) {
-    void activateSentry();
-  }
+  // TypeAny (M1b): third-party analytics & Sentry removed — nothing to activate.
+  // Cookie-consent state is still tracked so the modal/flow keeps working;
+  // the analytics-controller / sentry modules remain in place for future use.
 }

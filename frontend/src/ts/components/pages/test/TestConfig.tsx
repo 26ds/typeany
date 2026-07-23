@@ -119,7 +119,7 @@ function PuncAndNum(): JSXElement {
 }
 
 function Mode(): JSXElement {
-  const modeOptions = ["time", "words", "quote", "zen", "custom"] as const;
+  const modeOptions = ["time", "words", "custom"] as const;
 
   return (
     <div class={cn("z-2", cardClass)}>

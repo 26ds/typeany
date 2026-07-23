@@ -11,10 +11,6 @@ import { usePendingConnectionsQuery } from "../../../collections/connections";
 import { restartTestEvent } from "../../../events/test";
 import { createEffectOn } from "../../../hooks/effects";
 import { useRefWithUtils } from "../../../hooks/useRefWithUtils";
-import {
-  prefetchAboutPage,
-  prefetchLeaderboardPage,
-} from "../../../queries/prefetch";
 import { getServerConfigurationQueryOptions } from "../../../queries/server-configuration";
 import { getActivePage } from "../../../states/core";
 import {
@@ -22,7 +18,6 @@ import {
   getAnimatedLevel,
   setAnimatedLevel,
 } from "../../../states/header";
-import { showModal } from "../../../states/modals";
 import { getSnapshot } from "../../../states/snapshot";
 import { getFocus } from "../../../states/test";
 import { cn } from "../../../utils/cn";
@@ -30,7 +25,6 @@ import { getLevelFromTotalXp } from "../../../utils/levels";
 import { Anime } from "../../common/anime";
 import { AnimePresence } from "../../common/anime/AnimePresence";
 import { Button } from "../../common/Button";
-import { NotificationBubble } from "../../common/NotificationBubble";
 import { User } from "../../common/User";
 import { AccountMenu } from "./AccountMenu";
 import { AccountXpBar } from "./AccountXpBar";
@@ -68,13 +62,6 @@ export function Nav(): JSXElement {
     return pendingConnections().length > 0;
   });
 
-  const showAlertsNotificationBubble = createMemo((): boolean => {
-    const snapshot = getSnapshot();
-    if (snapshot === undefined) return false;
-
-    return snapshot.inboxUnreadSize > 0;
-  });
-
   const serverConfig = useQuery(() => getServerConfigurationQueryOptions());
   const showLoginButton = (): boolean =>
     serverConfig.data?.users.signUp ?? true;
@@ -100,38 +87,6 @@ export function Nav(): JSXElement {
       <Button
         variant="text"
         fa={{
-          icon: "fa-crown",
-          fixedWidth: true,
-        }}
-        router-link
-        dataset={{
-          "data-nav-item": "leaderboards",
-        }}
-        class={buttonClass()}
-        href="/leaderboards"
-        onMouseEnter={() => {
-          prefetchLeaderboardPage();
-        }}
-      />
-      <Button
-        variant="text"
-        fa={{
-          icon: "fa-info",
-          fixedWidth: true,
-        }}
-        class={buttonClass()}
-        dataset={{
-          "data-nav-item": "about",
-        }}
-        href="/about"
-        router-link
-        onMouseEnter={() => {
-          prefetchAboutPage();
-        }}
-      />
-      <Button
-        variant="text"
-        fa={{
           icon: "fa-cog",
           fixedWidth: true,
         }}
@@ -143,25 +98,6 @@ export function Nav(): JSXElement {
         router-link
       />
       <div class="grow"></div>
-      <Button
-        variant="text"
-        fa={{
-          icon: "fa-bell",
-          fixedWidth: true,
-        }}
-        dataset={{
-          "data-nav-item": "alerts",
-        }}
-        onClick={() => {
-          showModal("Alerts");
-        }}
-        class={cn(buttonClass(), "relative")}
-      >
-        <NotificationBubble
-          variant="fromCorner"
-          show={showAlertsNotificationBubble()}
-        />
-      </Button>
       <AnimePresence exitBeforeEnter>
         <Show
           when={getSnapshot()}
