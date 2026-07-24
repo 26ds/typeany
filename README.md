@@ -1,72 +1,45 @@
-[![](https://github.com/monkeytypegame/monkeytype/blob/master/frontend/static/images/githubbanner2.png?raw=true)](https://monkeytype.com/)
-<br />
+# TypeAny
 
-[![ChartJs](https://img.shields.io/badge/Chart.js-FF6384?style=for-the-badge&logo=chartdotjs&logoColor=white)](https://www.chartjs.org/)
-[![Eslint](https://img.shields.io/badge/eslint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white)](https://eslint.org/)
-[![Express](https://img.shields.io/badge/-Express-373737?style=for-the-badge&logo=Express&logoColor=white)](https://expressjs.com/)
-[![Firebase](https://img.shields.io/badge/firebase-DD2C00?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
-[![Fontawesome](https://img.shields.io/badge/fontawesome-538DD7?style=for-the-badge&logo=fontawesome&logoColor=white)](https://fontawesome.com/)
-[![HTML5](https://img.shields.io/badge/html5-E34F26?style=for-the-badge&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
-[![MongoDB](https://img.shields.io/badge/-MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![OXLint](https://img.shields.io/badge/oxlint-2b3c5a?style=for-the-badge&logo=oxc&logoColor=white)](https://oxc.rs/docs/guide/usage/linter.html)
-[![PNPM](https://img.shields.io/badge/pnpm-F69220?style=for-the-badge&logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
-[![SASS](https://img.shields.io/badge/SASS-CC6699?style=for-the-badge&logo=SASS&logoColor=white)](https://sass-lang.com/)
-[![Solid](https://img.shields.io/badge/solid-2C4F7C?style=for-the-badge&logo=solid&logoColor=white)](https://www.solidjs.com/)
-[![Tailwind](https://img.shields.io/badge/tailwind-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![TsRest](https://img.shields.io/badge/-TSREST-9333ea?style=for-the-badge&logoColor=white&logo=data:image/svg%2bxml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ3JlYXRlZCB3aXRoIElua3NjYXBlIChodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy8pIC0tPgoKPHN2ZwogICB3aWR0aD0iMjAuMzA2Nzc4bW0iCiAgIGhlaWdodD0iMTIuMDgzMjMzbW0iCiAgIHZpZXdCb3g9IjAgMCAyMC4zMDY3NzggMTIuMDgzMjMzIgogICB2ZXJzaW9uPSIxLjEiCiAgIGlkPSJzdmcxIgogICB4bWxuczppbmtzY2FwZT0iaHR0cDovL3d3dy5pbmtzY2FwZS5vcmcvbmFtZXNwYWNlcy9pbmtzY2FwZSIKICAgeG1sbnM6c29kaXBvZGk9Imh0dHA6Ly9zb2RpcG9kaS5zb3VyY2Vmb3JnZS5uZXQvRFREL3NvZGlwb2RpLTAuZHRkIgogICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0ibmFtZWR2aWV3MSIKICAgICBwYWdlY29sb3I9IiM1MDUwNTAiCiAgICAgYm9yZGVyY29sb3I9IiNmZmZmZmYiCiAgICAgYm9yZGVyb3BhY2l0eT0iMSIKICAgICBpbmtzY2FwZTpzaG93cGFnZXNoYWRvdz0iMCIKICAgICBpbmtzY2FwZTpwYWdlb3BhY2l0eT0iMCIKICAgICBpbmtzY2FwZTpwYWdlY2hlY2tlcmJvYXJkPSIxIgogICAgIGlua3NjYXBlOmRlc2tjb2xvcj0iI2QxZDFkMSIKICAgICBpbmtzY2FwZTpkb2N1bWVudC11bml0cz0ibW0iIC8+CiAgPGRlZnMKICAgICBpZD0iZGVmczEiIC8+CiAgPGcKICAgICBpbmtzY2FwZTpsYWJlbD0iTGF5ZXIgMSIKICAgICBpbmtzY2FwZTpncm91cG1vZGU9ImxheWVyIgogICAgIGlkPSJsYXllcjEiCiAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTMuODE5ODA1NCwtMi4yMTQ3MTkzKSI+CiAgICA8cGF0aAogICAgICAgZD0ibSAxNS40NTgwMzUsOC45NzMzOTUzIDguNjMzMjUsMC4wNDQ4NyAwLjAwOSwtMS42NjgxOTggLTguNjMzMjIsLTAuMDQ0ODUgeiBtIDAuMDI2MywtNS4wNTYxMDggOC42MzMyNSwwLjA0NDg1IDAuMDA5LC0xLjcwMjU2OCAtOC42MzMyNSwtMC4wNDQ4NSB6IG0gLTAuMDQ0OCw4LjYzMzI0NzcgOC42MzMyMywwLjA0NDg1IC0wLjAwOSwxLjcwMjU2NyAtOC42MzMyNSwtMC4wNDQ4NSB6IgogICAgICAgZmlsbD0iI2ZmZmZmZiIKICAgICAgIGlkPSJwYXRoMSIKICAgICAgIHN0eWxlPSJzdHJva2Utd2lkdGg6MC4yNjQ1ODMiIC8+CiAgICA8cGF0aAogICAgICAgZD0ibSAxMS4xMTE3MjUsMTAuMjg2NjI4IGMgMS42NTEsLTAuNjE5MTI0NyAyLjU5Njg4LC0xLjk2MDU2MjcgMi41OTY4OCwtMy44MDA3Mzk3IDAsLTIuNjQ4NDc5IC0xLjkyNjE2LC00LjI0Nzg4NSAtNS4wNzMzNzk2LC00LjI0Nzg4NSBoIC00LjgxNTQyIHYgMS43MDI1OTQgaCA0Ljc0NjYzIGMgMi4wODA5Mzk2LDAgMy4xNjQ0MDk2LDAuOTI4Njg3IDMuMTY0NDA5NiwyLjU0NTI5MSAwLDEuNTk5NDA2IC0xLjA4MzQ3LDIuNTQ1MjkyIC0zLjE2NDQwOTYsMi41NDUyOTIgaCAtNC43NDY2MyB2IDUuMjQ1MzYzNyBoIDEuOTYwNTYgdiAtMy41NzcxNjYgaCAyLjg1NDg2IGMgMC4yMDYzNywwIDAuNDI5OTUsMCAwLjYxOTEyLC0wLjAxNzIgbCAyLjUyODA5OTYsMy41OTQzNjQgaCAyLjEzMjU0IHoiCiAgICAgICBmaWxsPSIjZmZmZmZmIgogICAgICAgaWQ9InBhdGgyIgogICAgICAgc3R5bGU9InN0cm9rZS13aWR0aDowLjI2NDU4MyIgLz4KICA8L2c+Cjwvc3ZnPgo=)](https://ts-rest.com/)
-[![Turborepo](https://img.shields.io/badge/-Turborepo-FF1E56?style=for-the-badge&logo=turborepo&logoColor=white)](https://turborepo.org/)
-[![TypeScript](https://img.shields.io/badge/typescript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-9135FF?style=for-the-badge&logo=Vite&logoColor=white)](https://vitejs.dev/)
-[![Vitest](https://img.shields.io/badge/vitest-00FF74?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
-[![Zod](https://img.shields.io/badge/-Zod-408AFF?style=for-the-badge&logo=zod&logoColor=white)](https://zod.dev/)
+**TypeAny** is a typing-practice web app that lets you **upload your own books (PDF / EPUB / TXT, English & Chinese) and practice typing through them chapter by chapter** — while keeping the clean, low-distraction typing feel of a modern typing test.
 
-# About
+It is a **fork of [Monkeytype](https://github.com/monkeytypegame/monkeytype)** ([monkeytype.com](https://monkeytype.com/)). We keep Monkeytype's excellent typing engine and per-second speed curves, and build a "read & type through your own books" product on top of it.
 
-Monkeytype is a minimalistic and customizable [typing test](https://www.monkeytype.com). It features many test modes, an account system to save your typing speed history, and user-configurable features such as themes, sounds, a smooth caret, and more. Monkeytype attempts to emulate a natural typing experience during a typing test by unobtrusively presenting the text prompts and displaying typed characters in place, providing straightforward, real-time feedback on typos, speed, and accuracy.
+## Relationship to Monkeytype (GPL-3.0)
 
-# Features
+- This frontend is **derived from Monkeytype** and is distributed under the **GNU GPL-3.0** (same license as upstream). See [`LICENSE`](./LICENSE).
+- The upstream project, its copyright notices, and its contributors' credits are **preserved** (see [Credits](#credits)). All original Monkeytype copyright remains with its authors.
+- The **frontend stays open-source (GPL-3.0)**. TypeAny's separate **backend** (AI document parsing, accounts, cloud storage, paid features) is a distinct, independently-licensed service and is **not** part of this repository.
+- Monkeytype's name and logo are being removed from the product surface; any remaining references are for attribution only.
 
-- Minimalistic design, with optional advertisements and focus mode while typing
-- Type what you see, see what you type
-- Live errors, wpm, and accuracy displays
-- A variety of test lengths and languages
-- Punctuation and numbers modes
-- Quotes
-- Themes
-- Smooth caret
-- Account system
-- Challenges and just-for-fun test modifiers
-- And much more
+Upstream: https://github.com/monkeytypegame/monkeytype
 
-# Discord bot
+## What's different in TypeAny
 
-On the [Monkeytype Discord server](https://www.discord.gg/monkeytype), we added a Discord bot to auto-assign optional roles based on typing performance and challenge completion. You can find its code over at https://github.com/monkeytypegame/monkeytype-bot.
+- **Upload & Type** — bring your own books and type through them by chapter (sequential or random paragraphs).
+- **Reading + progress** layer on top of the typing test (bookshelf, chapters, page/paragraph navigation).
+- **English + Chinese** typing, with a character model that keeps the caret and error markers stable across mixed-width text.
+- Trimmed, focused UI (no ads, no leaderboards/quotes/zen) and a custom visual theme.
 
-# Bug report or Feature request
+Product spec, milestones, and decisions live in [`WORKORDER.md`](./WORKORDER.md); working rules for contributors and AI agents are in [`CLAUDE.md`](./CLAUDE.md).
 
-If you encounter a bug or have a feature request, [send us an email](mailto:contact@monkeytype.com), [create an issue](https://github.com/monkeytypegame/monkeytype/issues), [create a discussion thread](https://github.com/monkeytypegame/monkeytype/discussions), or [join the Discord server](https://www.discord.gg/monkeytype).
+## Tech stack
 
-# Want to Contribute?
+Inherited from Monkeytype: SolidJS + TypeScript + Vite + Tailwind + Chart.js, in a pnpm + turbo monorepo. Node 24, pnpm 10.
 
-Refer to [CONTRIBUTING.md](./docs/CONTRIBUTING.md).
+```bash
+pnpm install
+pnpm dev-fe   # http://localhost:3000
+```
 
-# Code of Conduct
+Guest mode works out of the box (accounts disabled); no backend required for local typing.
 
-Before contributing to this repository, please read the [code of conduct](./docs/CODE_OF_CONDUCT.md).
+## Credits
 
-# Security
+TypeAny stands on the shoulders of **Monkeytype** and its community:
 
-To report a security vulnerability, please refer to [SECURITY.md](./docs/SECURITY.md).
+- [Monkeytype](https://github.com/monkeytypegame/monkeytype) by [Miodec](https://github.com/Miodec) and all of its [contributors](https://github.com/monkeytypegame/monkeytype/graphs/contributors), who built the typing engine, themes, and features TypeAny is based on.
+- [Montydrei](https://www.reddit.com/user/montydrei) for the original Monkeytype name suggestion, and everyone who gave feedback on the [original prototype post](https://www.reddit.com/r/MechanicalKeyboards/comments/gc6wx3/experimenting_with_a_completely_new_type_of/).
 
-# Credits
+## License
 
-[Montydrei](https://www.reddit.com/user/montydrei) for the name suggestion.
-
-Everyone who provided valuable feedback on the [original Reddit post](https://www.reddit.com/r/MechanicalKeyboards/comments/gc6wx3/experimenting_with_a_completely_new_type_of/) for the prototype of this website.
-
-All of the [contributors](https://github.com/monkeytypegame/monkeytype/graphs/contributors) have helped implement various features, add themes, fix bugs, and more.
-
-# Support
-
-If you wish to support further development and feel extra awesome, you can [donate](https://ko-fi.com/monkeytype), [become a Patron](https://www.patreon.com/monkeytype), or [buy a t-shirt](https://www.monkeytype.store/).
+GNU General Public License v3.0 — see [`LICENSE`](./LICENSE). Because TypeAny is a GPL-3.0 derivative of Monkeytype, this frontend's source is and will remain publicly available.

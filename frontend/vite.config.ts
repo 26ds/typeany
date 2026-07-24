@@ -127,8 +127,8 @@ function getPlugins({
       injectRegister: null,
       registerType: "autoUpdate",
       manifest: {
-        short_name: "Monkeytype",
-        name: "Monkeytype",
+        short_name: "TypeAny",
+        name: "TypeAny — type through your own books",
         start_url: "/",
         icons: [
           {

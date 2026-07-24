@@ -120,3 +120,23 @@
 - 计划外变更:无(深化 M1b 广告移除;已在 WORKORDER「已定决策」记入永久零广告)。
 - 已知问题 / 未完:`ad-controller.ts` 与 EG/PW/video-ad-popup 模块及广告容器 DOM 仍在(惰性、恒不触发);彻底删随后期。
 - 下一步:M1c 重品牌 + Ink Aurora 基础主题。
+
+---
+
+## M1c-1 — 品牌清理(去 monkeytype 名称/logo)(2026-07-23)
+
+- 实现(主可见面的 monkeytype 品牌 → TypeAny):
+  - **文字 logo**:`Logo.tsx` 删 monkeytype 鼠标 SVG 与 "monkey see" 副文,改为文字 wordmark `TypeAny`(`Type` 用 text 色,`Any` 用 main 色;字体 `"Sora","Space Grotesk",system-ui`——字体文件 M5,先系统兜底);`aria-label` → "TypeAny Home"。
+  - **head.html**:`<title>`、`meta name/description/keywords/author`、`og:title/description`、`twitter:title/card` 全改 TypeAny;删 monkeytype.com 的 `og:url`/`og:image`/`twitter:image`/`meta image` 外链;删 `preconnect api.monkeytype.com`(后端 M6 再配);favicon 首选新的 `favicon.svg`,删 monkeytype 的 apple-touch/safari mask-icon/msapplication(TileColor/browserconfig)。
+  - **favicon.svg**:重画为 Ink Aurora「T」标(深底 `#0B1112` + 主色 `#8BE9B5`)。
+  - **PWA manifest**(`vite.config.ts`):`name`/`short_name` → TypeAny。
+  - **README.md**:重写为 GPL 合规版——声明 fork 自 Monkeytype、GPL-3.0、链上游、保留 Monkeytype/Miodec 致谢、说明前端 GPL 开源 / 后端独立闭源。
+- 交互逻辑:logo 聚焦(打字中)时 `Any` 去掉 main 色随整体变暗(`classList`,规避 oxlint `solid/prefer-classlist`)。
+- 关键文件:`components/layout/header/Logo.tsx`、`src/html/head.html`、`static/images/favicon/favicon.svg`、`vite.config.ts`、`README.md`。
+- 验证:lint 0/0、build 绿;浏览器 tab 标题为「TypeAny — type through your own books」,顶栏 logo 显示文字 `TypeAny`(monkeytype 鼠标图标已除)。
+- 计划外变更:无。
+- 已知问题 / 未完:
+  - **残留 monkeytype 串在游客态不可达面**,留后续清:`AboutPage.tsx`(/about 的 nav 入口 M1b 已删、仅 URL 可达);`SupportModal.tsx`(footer support 入口 M1b 已删=孤儿);账号相关 `RemoveAuthMethodModal`/`AccountTab`(登录后才见,M6)。上游 API URL `api.monkeytype.com`(ape 层)随 M6 换我方后端。
+  - **光栅 favicon/PWA 图标仍是 monkeytype**:`favicon.ico`、`apple-touch-icon.png`、`android-chrome-*.png`、`maskable/general_icon`。SVG favicon(现代浏览器 tab 可见面)已换;光栅版需图像工具从源 SVG 重新生成 → 资产任务,待办。
+  - head.html `:root` 兜底色与 manifest `theme_color/background_color` 仍是 serika(`#323437`/`#e2b714`)→ 随 M1c-2 换 Ink Aurora。
+- 下一步:**M1c-2** 新建 `typeany` 主题(Ink Aurora B 色板,写入 `themes.ts` + schema `ThemeName`,设为默认);之后 **M1c-3** 玻璃拟态 v1(背景渐变 + 面板半透明 blur)。
