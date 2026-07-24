@@ -23,7 +23,7 @@ const variables = cn(
 );
 const buttonClass = "px-(--horizontal-padding) py-(--vertical-padding)";
 const cardClass =
-  "card rounded-(--roundness) bg-sub-alt px-(--horizontal-padding)";
+  "card rounded-[1.125rem] border border-[rgba(190,235,215,0.12)] bg-[color-mix(in_srgb,var(--sub-alt-color)_62%,transparent)] px-(--horizontal-padding) backdrop-blur-xl";
 const durationMs = 250;
 
 export function TestConfig(): JSXElement {

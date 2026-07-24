@@ -1,0 +1,49 @@
+// TypeAny — Ink Aurora glassmorphism v1
+// Global visual layer (WORKORDER decision: 全站默认玻璃拟态). Panel tints derive
+// from the active theme's --sub-alt-color via color-mix so they adapt to any
+// theme; the signature aurora background glows use design/README's B values.
+// Imported last inside @layer custom-styles so these win over popups.scss.
+
+// Signature aurora background — subtle green + amber glows over the theme bg.
+body {
+  background:
+    radial-gradient(
+      circle at 15% 20%,
+      rgba(75, 170, 135, 0.13),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 82% 15%,
+      rgba(255, 180, 85, 0.1),
+      transparent 28%
+    ),
+    var(--bg-color);
+  background-attachment: fixed;
+}
+
+// Modals / popups: dimmed + blurred backdrop, translucent glass panel.
+.popupWrapper,
+.modalWrapper {
+  background: rgba(3, 10, 10, 0.58);
+  backdrop-filter: blur(24px);
+
+  .modal {
+    background: color-mix(in srgb, var(--sub-alt-color) 82%, transparent);
+    backdrop-filter: blur(30px) saturate(120%);
+    border: 1px solid rgba(190, 235, 215, 0.14);
+    border-radius: 1.75rem; // ~28px, design B large card/modal
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.38);
+  }
+}
+
+// Respect reduced-transparency preference: fall back to solid panels.
+@media (prefers-reduced-transparency: reduce) {
+  .popupWrapper,
+  .modalWrapper {
+    backdrop-filter: none;
+    .modal {
+      background: var(--sub-alt-color);
+      backdrop-filter: none;
+    }
+  }
+}

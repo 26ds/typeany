@@ -156,3 +156,26 @@
 - 计划外变更:无。
 - 已知问题 / 未完:仍是**平面纯色**,无玻璃拟态(背景径向渐变 + 面板半透明 + backdrop-blur + 边框高光)——留 M1c-3;圆角/间距 token(B:小按钮 12 / 配置条 18 / 卡片 28)与字体文件(Sora/IBM Plex Mono)随 M1c-3 / M5。AA 对比度已按 design §9 选色(text/sub 达标),玻璃层落地后需按"最差背景透出"复检。
 - 下一步:**M1c-3** 玻璃拟态 v1(全局 CSS:body 背景渐变 + 主面板/弹窗半透明 blur + 圆角 token)。
+
+---
+
+## M1c-3 — 玻璃拟态 v1(2026-07-23)
+
+- 实现(照 design/README B「Ink Aurora」§4 玻璃参数 + §8 动效):
+  - 新建全局 `frontend/src/styles/glass.scss`,加入 `index.scss` 的 `@import` **末位**(同 `custom-styles` 层内后导入胜出,压过 `popups.scss` 的 `.modal`)。
+  - **Aurora 背景**:`body` 背景改为两道 radial-gradient 微光(绿 `rgba(75,170,135,.13)` + 琥珀 `rgba(255,180,85,.10)`)叠在 `var(--bg-color)` 上,`background-attachment: fixed`。
+  - **弹窗玻璃**:`.popupWrapper/.modalWrapper` 遮罩 `rgba(3,10,10,.58)` + `backdrop-filter: blur(24px)`;`.modal` 面板 `color-mix(in srgb, var(--sub-alt-color) 82%, transparent)` + `blur(30px) saturate(120%)` + 边框 `rgba(190,235,215,.14)` + 圆角 `1.75rem`(≈28px)+ 阴影 `0 20px 60px rgba(0,0,0,.38)`。
+  - **配置条卡片玻璃**:改 `TestConfig.tsx` 的 `cardClass`——`bg-sub-alt` → Tailwind arbitrary `bg-[color-mix(in_srgb,var(--sub-alt-color)_62%,transparent)]` + `backdrop-blur-xl` + `border-[rgba(190,235,215,0.12)]` + `rounded-[1.125rem]`(≈18px)。
+- 交互逻辑 / 关键约束:
+  - **层级**:head.html 的 `@layer` 顺序里 `utilities` 在最后=最高优先级,故 `bg-sub-alt` 这类 Tailwind 工具类会盖过 custom-styles 层的覆盖 → 配置条玻璃**必须在组件的 Tailwind class 上改**(留在 utilities 层),而非在 SCSS 里覆盖;弹窗 `.modal` 因本就是 custom-styles 层 SCSS,故在 glass.scss 里同层后导入即可胜出。
+  - **主题无关**:面板玻璃色用 `color-mix(var(--sub-alt-color))` 派生 → 换任何主题都自适应;仅 body 的极光辉光用 design 的固定绿/琥珀值(品牌签名背景)。
+  - **无障碍**:`@media (prefers-reduced-transparency: reduce)` 回退为不透明 `--sub-alt-color` 面板、去 blur。
+  - vendor 前缀 `-webkit-backdrop-filter` 被 stylelint `property-no-vendor-prefix` 禁(交给构建期 autoprefixer),已移除。
+- 关键文件:`frontend/src/styles/glass.scss`(新)、`styles/index.scss`(import)、`components/pages/test/TestConfig.tsx`(cardClass)。
+- 验证:stylelint 干净、lint 0/0、build 绿;浏览器实测——test 页 body 有绿+琥珀极光辉光、配置条卡片半透明玻璃、cookie 弹窗磨砂大圆角面板。
+- 计划外变更:无(v1 范围=背景 + 弹窗 + 配置条;圆角用 design B 的 18/28)。
+- 已知问题 / 未完:
+  - 玻璃仅覆盖**背景 / 弹窗 / 配置条**三处主面;结算页面板、设置页各 section 卡片、账号页等更多面待 v1.1(同法:custom-styles 层的用 glass.scss,Tailwind 工具类的改组件 class)。
+  - 圆角 token 未做成统一系统(小按钮仍沿用 `--roundness`);字体文件(Sora/IBM Plex Mono)M5。
+  - 极光辉光偏克制(design 低 alpha),如需更明显可调 glass.scss 的 alpha。
+- 下一步:**M1c 完成**(c1 品牌 + c2 主题 + c3 玻璃)。M1 只剩 **M1d Landing 双入口**(`Upload & Type` / `Random Mode`)。
