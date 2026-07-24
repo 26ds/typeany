@@ -140,3 +140,19 @@
   - **光栅 favicon/PWA 图标仍是 monkeytype**:`favicon.ico`、`apple-touch-icon.png`、`android-chrome-*.png`、`maskable/general_icon`。SVG favicon(现代浏览器 tab 可见面)已换;光栅版需图像工具从源 SVG 重新生成 → 资产任务,待办。
   - head.html `:root` 兜底色与 manifest `theme_color/background_color` 仍是 serika(`#323437`/`#e2b714`)→ 随 M1c-2 换 Ink Aurora。
 - 下一步:**M1c-2** 新建 `typeany` 主题(Ink Aurora B 色板,写入 `themes.ts` + schema `ThemeName`,设为默认);之后 **M1c-3** 玻璃拟态 v1(背景渐变 + 面板半透明 blur)。
+
+---
+
+## M1c-2 — Ink Aurora 主题(色板)+ 设为默认(2026-07-23)
+
+- 实现:新建 `typeany` 主题并设为全站默认,色板照 `design/README.md` B「Ink Aurora」。
+  - `packages/schemas/src/themes.ts`:`ThemeNameSchema` 枚举追加 `"typeany"`(与前端 `themes.ts` 的 `Record<ThemeName,Theme>` 类型对齐,turbo 会先重建 schemas 包)。
+  - `frontend/src/ts/constants/themes.ts`:加 `typeany` 条目。映射:`bg #0b1112`、`main #8be9b5`(正确/主按钮)、`caret #75d8d1`(辅助/光标)、`sub #84958d`(弱文字/未打)、`subAlt #1d2a28`(卡片底)、`text #eef8f1`(主文字)、`error #ff6b6b`;`errorExtra #9e4b4b`、`colorfulError #ffc46b`(取 B 琥珀强调)、`colorfulErrorExtra #b3894b` 为派生值(design 未直接给,按暗底和谐取)。
+  - `frontend/src/ts/constants/default-config.ts`:`theme`/`themeLight`/`themeDark` 全设 `typeany`(暗色单主题;autoSwitch 默认关时只 `theme` 生效)。
+  - `frontend/src/html/head.html`:`:root` 兜底色变量 + `frontend/vite.config.ts` PWA `theme_color`/`background_color` 同步为 Ink Aurora(`#0b1112`),消除首屏/安装态的 serika 黄。
+- 交互逻辑:主题系统是 `themes.ts`(色值)→ theme-controller 注入 CSS 变量;`typeany` 无 `hasCss`,纯色板、无特效 CSS 文件。picker 从 `themes.ts` 取,故新主题自动出现在设置的主题列表。
+- 关键文件:`packages/schemas/src/themes.ts`、`frontend/src/ts/constants/themes.ts`、`constants/default-config.ts`、`src/html/head.html`、`vite.config.ts`。
+- 验证:lint 0/0、build 绿;浏览器清 localStorage 后默认即 Ink Aurora——背景墨绿黑、logo「Any」与主按钮墨绿(`#8be9b5`)、次要文字/未打词暗灰绿。
+- 计划外变更:无。
+- 已知问题 / 未完:仍是**平面纯色**,无玻璃拟态(背景径向渐变 + 面板半透明 + backdrop-blur + 边框高光)——留 M1c-3;圆角/间距 token(B:小按钮 12 / 配置条 18 / 卡片 28)与字体文件(Sora/IBM Plex Mono)随 M1c-3 / M5。AA 对比度已按 design §9 选色(text/sub 达标),玻璃层落地后需按"最差背景透出"复检。
+- 下一步:**M1c-3** 玻璃拟态 v1(全局 CSS:body 背景渐变 + 主面板/弹窗半透明 blur + 圆角 token)。

@@ -1852,6 +1852,18 @@ export const themes: Record<ThemeName, Theme> = {
     colorfulError: "#ca4754",
     colorfulErrorExtra: "#7e2a33",
   },
+  typeany: {
+    bg: "#0b1112",
+    caret: "#75d8d1",
+    main: "#8be9b5",
+    sub: "#84958d",
+    subAlt: "#1d2a28",
+    text: "#eef8f1",
+    error: "#ff6b6b",
+    errorExtra: "#9e4b4b",
+    colorfulError: "#ffc46b",
+    colorfulErrorExtra: "#b3894b",
+  },
   sewing_tin: {
     bg: "#241963",
     caret: "#fbdb8c",
