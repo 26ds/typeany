@@ -69,4 +69,5 @@
   - 迁移标记置位后,**M2c 之前**新存的"短文本"不会再自动进书架(旧 key 仍收着)。M2c 取消短文本这条路后此问题消失。
   - "Opened … ago" 走 `date-fns` 的英文相对时间,中文化归 M5。
   - 自动化环境限制(同 M1d / M2a 记录):浏览器 pane 的标签页处于 hidden 时 rAF 不跑,`TestLogic.finish()` 里的淡出动画会卡住;本次靠截图逼出帧来完成验证。真人使用不受影响。
+- 线上复验(2026-07-31,https://typeany.vercel.app):push 后 Vercel 自动部署已生效 —— custom 弹窗为 M2a 裁剪后的样子(只剩 mode / limit / open file / custom generator / remove zero-width / replace new lines),`/bookshelf` 为 M2b 新书架。线上走通「custom → change → 粘贴文本 → save → 勾 Long text(book mode) → 命名保存 → /bookshelf」,书卡正确显示 `85 words / Not started / 0% / Never opened`。**用户反馈"线上没看到新功能",实为 M2b 书架默认空 + 只读、没有任何建书入口所致 —— 这是 M2c 要解决的,不是部署问题。**
 - 下一步:**M2c** 书架操作闭环(导入 .txt / 粘贴建书、开始/继续、重置进度、重命名、下载、删除,`saved texts` 按钮改跳 `/bookshelf`,退役 `SavedTextsModal`)。
