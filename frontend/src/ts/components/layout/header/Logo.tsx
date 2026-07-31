@@ -1,7 +1,5 @@
 import { JSXElement } from "solid-js";
 
-import { restartTestEvent } from "../../../events/test";
-import { getActivePage } from "../../../states/core";
 import { getFocus } from "../../../states/test";
 import { cn } from "../../../utils/cn";
 
@@ -17,9 +15,6 @@ export function Logo(): JSXElement {
         "font-family": '"Sora", "Space Grotesk", system-ui, sans-serif',
       }}
       data-ui-element="logo"
-      onClick={() => {
-        if (getActivePage() === "test") restartTestEvent.dispatch();
-      }}
     >
       <h1
         class={cn(

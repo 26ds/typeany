@@ -143,7 +143,7 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 
 ## 分期
 
-- **M1** fork + 大裁剪(quote/zen/皇冠/info/铃铛/广告/排行榜/Sentry)+ 重品牌 + landing 双入口 + 游客模式 → 详见 `docs/plans/M1.md`。**进度:M1a ✅ + 部署管线 ✅ + M1b ✅(界面裁剪+永久零广告)+ M1c ✅(c1 品牌 / c2 Ink Aurora 主题 / c3 玻璃拟态 v1);只剩 M1d Landing 双入口**
+- **M1 ✅ 已完成(2026-07-30)** fork + 大裁剪(quote/zen/皇冠/info/铃铛/广告/排行榜/Sentry)+ 重品牌 + landing 双入口 + 游客模式 → 详见 `docs/plans/M1.md`。**a fork ✅ / 部署管线 ✅ / b 裁剪 + 永久零广告 ✅ / c 品牌 + Ink Aurora + 玻璃 v1 ✅ / d Landing 双入口 ✅**;路由现为 `/`=landing、`/test`=打字页、`/bookshelf`=书架占位
 - **M2** custom 弹窗裁剪 + saved texts 升级书架
 - **M3** 书籍层:指针连续性引擎、双进度条、上/下块箭头、双结算、顺序 + 章节/页随机、符号跳过;热力图本地记数开始
 - **M4** 解析管道:本地 + AI 清洗/OCR + 章节识别 + 仿版式选页弹窗(选文本→预览→开始)

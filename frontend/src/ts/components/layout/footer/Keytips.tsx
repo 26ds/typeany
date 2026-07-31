@@ -1,13 +1,18 @@
 import { JSXElement, Show } from "solid-js";
 
 import { getConfig } from "../../../config/store";
+import { getActivePage } from "../../../states/core";
 import { getFocus } from "../../../states/test";
 import { CommandlineHotkey } from "../../hotkeys/CommandlineHotkey";
 import { QuickRestartHotkey } from "../../hotkeys/QuickRestartHotkey";
 
 export function Keytips(): JSXElement {
+  // "restart test" is meaningless on the landing/bookshelf pages.
+  const isTypingContext = (): boolean =>
+    getActivePage() !== "landing" && getActivePage() !== "bookshelf";
+
   return (
-    <Show when={getConfig.showKeyTips}>
+    <Show when={getConfig.showKeyTips && isTypingContext()}>
       <div
         class="mb-8 flex flex-col items-center gap-2 transition-opacity"
         classList={{

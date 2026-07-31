@@ -52,7 +52,19 @@ const routes: Route[] = [
   {
     path: "/",
     load: async (_params, options) => {
+      await PageController.change("landing", options);
+    },
+  },
+  {
+    path: "/test",
+    load: async (_params, options) => {
       await PageController.change("test", options);
+    },
+  },
+  {
+    path: "/bookshelf",
+    load: async (_params, options) => {
+      await PageController.change("bookshelf", options);
     },
   },
   {

@@ -179,3 +179,33 @@
   - 圆角 token 未做成统一系统(小按钮仍沿用 `--roundness`);字体文件(Sora/IBM Plex Mono)M5。
   - 极光辉光偏克制(design 低 alpha),如需更明显可调 glass.scss 的 alpha。
 - 下一步:**M1c 完成**(c1 品牌 + c2 主题 + c3 玻璃)。M1 只剩 **M1d Landing 双入口**(`Upload & Type` / `Random Mode`)。
+
+---
+
+## M1d — Landing 双入口 + 游客路由(2026-07-30)
+
+- 实现:
+  - **路由重排**(`controllers/route-controller.ts`):`/` = **landing**(新)、`/test` = 打字页(原 `/`)、`/bookshelf` = 书架占位页(新);`/verify` 仍指向打字页不变。
+  - **两个新页面**接入上游 solidPage 机制:`pages/page.ts` 的 `PageName` 加 `"landing" | "bookshelf"` → `page-controller.ts` 的 `pages` 表加 `landing: solidPage("landing")` / `bookshelf: solidPage("bookshelf")` → `index.html` 加 `#pageLanding` / `#pageBookshelf` 两个 `.page` 骨架 div + `mount` 点 → `mount.tsx` 注册 `landingpage` / `bookshelfpage`。命名必须对齐:`solidPage(id)` 内部按 `page${首字母大写(id)}` 找 DOM id。
+  - **LandingPage.tsx**(新):Sora 大字标 `Type`(text 色)+ `Any`(main 色),`clamp(3.25rem,11vw,6rem)` 响应式;副标语;两张玻璃 CTA 卡 `Upload & Type` → `/bookshelf`、`Random Mode` → `/test`。玻璃参数照 design B(`color-mix(--sub-alt-color 62%)` + `backdrop-blur-xl` + 边框 `rgba(190,235,215,.12)` + 圆角 18px + 阴影 `0 20px 60px rgba(0,0,0,.38)`);动效照 design §8(hover 亮度 +10% 且上移 1px、press `scale(.98)`)。
+  - **BookshelfPage.tsx**(新):玻璃大卡占位,文案说明"上传 PDF/EPUB/TXT + 章节检测 + 登录云端"仍在建设中、Random Mode 游客可玩且成绩存本机;两个出口按钮 `Random Mode` / `Back home`。
+  - **Landing 隐藏顶栏**(`Header.tsx`):`getActivePage() === "landing"` 时整个 header 不渲染,避免与大字标重复;`Keytips.tsx` 在 landing / bookshelf 上不显示("restart test" 在这两页无意义)。
+  - **原"去打字页"入口全部改指 `/test`**:顶栏键盘图标(`Nav.tsx`)、命令面板 `View Typing Page`(`commandline/lists/navigation.ts`)、`Load challenge`(`load-challenge.ts`)。`Logo` 改为纯 Home 链接(指 `/` = landing),去掉原"点 logo 重开测试"的 onClick(现在点了会离开测试页,语义冲突)。
+  - `frontend/firebase.json` rewrite 白名单补 `bookshelf`(`/test` 上游已在列)。Vercel 走 `vercel.json` 的 `/(.*)` 全量 rewrite,无需改。
+- 交互逻辑 / 边界:
+  - 游客路径闭环:landing → `Random Mode` → `/test` 直接开打(成绩存本地);landing → `Upload & Type` → `/bookshelf` 占位页 → 可回 `/test` 或回 landing;顶栏 logo 在任何页都回 landing。
+  - `navigate("/")` 的既有调用点(未登录时 `/login`·`/account`·`/account-settings`·`/friends` 的兜底跳转、404 页 Go Home)现在落到 landing —— 语义正确,未改。
+  - 硬刷新 `/test`、`/bookshelf` 不 404(dev 由 Vite 兜底,生产由 vercel.json SPA rewrite 兜底)。
+- 关键文件:`ts/components/pages/LandingPage.tsx`(新)、`ts/components/pages/BookshelfPage.tsx`(新)、`ts/controllers/route-controller.ts`、`ts/controllers/page-controller.ts`、`ts/pages/page.ts`、`src/index.html`、`ts/components/mount.tsx`、`layout/header/{Header,Logo,Nav}.tsx`、`layout/footer/Keytips.tsx`、`commandline/lists/{navigation,load-challenge}.ts`、`frontend/firebase.json`。
+- 计划外变更(均为顺手清掉的 M1c 品牌残留,已在硬性产品规则内):
+  - **页面标题里的 Monkeytype 残留**:`page-controller.ts` 的 `${页名} | Monkeytype` → `| TypeAny`;`utils/misc.ts` 的默认标题 `Monkeytype | A minimalistic...` → `TypeAny — type through your own books`。这两处是**运行时覆盖** head.html 的 `<title>`,所以 M1c-1 改了 head.html 仍不够——任何客户端换页都会把标题写回 monkeytype。landing 与 test 页用默认标语标题,其余页 `${页名} | TypeAny`。
+  - **404 页删 `monkeymeme.jpg`**:该图是 monkeytype 品牌资产且 404 对任何错误 URL 都可达。删后页面居中排版正常。
+- 已知问题 / 未完:
+  - **自动化验证的老限制**(M1a 已记录,非本期回归):浏览器工具瞬间注入整串文本 = 0 秒测试,被判无效并自动重开,拿不到结算曲线。本期实测到的是:输入确实进引擎(`<letter class="correct">` 逐字判定正确)、打满 10 词会走完结束流程。**真人正常速打一轮 + 结算曲线仍需人工确认一次。**
+  - **换页动画在后台标签页会卡住**(上游既有,已用 `git stash` 回到 M1c 基线复现确认):`PageController.change()` 的 `promiseAnimate` 依赖 rAF,标签页不在前台时 rAF 被节流 → `PageTransition` 停在 `true` → 下一次 `navigate` 被 "page is busy" 拦掉,需要再点一次(第一次点击把标签页拉回前台、动画补完)。真人使用不受影响,**不是 M1d 引入的**,也未修(改上游换页机制风险大,留待后续如确实影响真人体验再处理)。
+  - Landing 的 Sora / IBM Plex Mono 字体文件仍未引入(系统 sans 兜底),随 M5 字体资产一起做。
+  - bookshelf 占位页正文沿用全站等宽字体(与 landing 的 sans 不一致);该页 M2/M4 会整体重做,不单独调。
+  - cookie 同意弹窗仍在(M1b 已记录的遗留);光栅 favicon/PWA 图标仍是 monkeytype(M1c-1 已记录)。
+  - 本机 Node 已升到 **24.18.0**,`.nvmrc` 仍钉 24.11.0(该版本已不在本机)→ `nvm use` 会报 not installed;`package.json` engines 是 `>=24.0.0 <25`,直接用 24.18.0 即可,lint / build 全绿。
+- 验证:`pnpm lint-fe` 0 error / 0 warning(590 文件);`RECAPTCHA_SITE_KEY=<占位> pnpm build-fe` 成功(PWA 产物齐);浏览器实测——`/` 出 landing(无顶栏、Sora 大字标、两张玻璃卡、页脚法务链接)、点 `Upload & Type` 进 `/bookshelf`(顶栏回来、标题 `Bookshelf | TypeAny`)、点 logo 回 landing、`/test` 打字页与配置条正常、硬刷新 `/test` 与 `/bookshelf` 均不 404、未知路径出 404 页(已无 monkeymeme 图,标题 `404 | TypeAny`)。
+- 下一步:**M1 全部完成**(a fork / b 裁剪 / c 品牌+主题+玻璃 / d Landing 双入口)。进入 M2 前按 CLAUDE.md 工作流:先读 `WORKORDER.md` 的 Custom 弹窗裁剪表 + 本 LOG,再实地读 custom 弹窗与 saved texts 代码,然后写 `docs/plans/M2.md` 交用户确认。

@@ -47,6 +47,8 @@ type ChangeOptions = {
 
 const pages = {
   loading: PageLoading.page,
+  landing: solidPage("landing"),
+  bookshelf: solidPage("bookshelf"),
   test: PageTest.page,
   settings: solidPage("settings", {
     beforeShow: async () => {
@@ -172,12 +174,12 @@ function updateOpenGraphUrl(): void {
 }
 
 function updateTitle(nextPage: { id: string; display?: string }): void {
-  if (nextPage.id === "test") {
+  if (nextPage.id === "test" || nextPage.id === "landing") {
     Misc.updateTitle();
   } else {
     const titleString =
       nextPage.display ?? Strings.capitalizeFirstLetterOfEachWord(nextPage.id);
-    Misc.updateTitle(`${titleString} | Monkeytype`);
+    Misc.updateTitle(`${titleString} | TypeAny`);
   }
 }
 

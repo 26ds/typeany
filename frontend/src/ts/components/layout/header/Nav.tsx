@@ -75,7 +75,7 @@ export function Nav(): JSXElement {
           fixedWidth: true,
         }}
         router-link
-        href="/"
+        href="/test"
         class={buttonClass()}
         dataset={{
           "data-nav-item": "test",

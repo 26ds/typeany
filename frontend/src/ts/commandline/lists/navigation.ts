@@ -13,7 +13,7 @@ const commands: Command[] = [
     alias: "navigate go to start begin type test",
     icon: "fa-keyboard",
     exec: (): void => {
-      void navigate("/");
+      void navigate("/test");
     },
   },
   {
