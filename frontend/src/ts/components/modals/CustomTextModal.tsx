@@ -21,7 +21,6 @@ import { getLoadedChallenge, setLoadedChallenge } from "../../states/test";
 import * as CustomText from "../../test/custom-text";
 import * as PractiseWords from "../../test/practise-words";
 import { cn } from "../../utils/cn";
-import * as Strings from "../../utils/strings";
 import { AnimatedModal } from "../common/AnimatedModal";
 import { Button } from "../common/Button";
 import { Fa } from "../common/Fa";
@@ -31,7 +30,6 @@ import { TextareaField } from "../ui/form/TextareaField";
 import { CustomGeneratorModal } from "./CustomGeneratorModal";
 import { SaveCustomTextModal } from "./SaveCustomTextModal";
 import { SavedTextsModal } from "./SavedTextsModal";
-import { WordFilterModal } from "./WordFilterModal";
 
 export type CustomTextIncomingData =
   | ({ set?: boolean; long?: boolean } & (
@@ -47,11 +45,6 @@ const modeOptions = [
   { value: "repeat", label: "repeat" },
   { value: "shuffle", label: "shuffle" },
   { value: "random", label: "random" },
-];
-
-const delimiterOptions = [
-  { value: "true", label: "pipe" },
-  { value: "false", label: "space" },
 ];
 
 export function CustomTextModal(): JSXElement {
@@ -74,8 +67,6 @@ export function CustomTextModal(): JSXElement {
       mode: "simple" as Mode,
       limitWord: "",
       limitTime: "",
-      limitSection: "",
-      pipeDelimiter: false,
     },
     onSubmit: ({ value }) => {
       if (value.text === "") {
@@ -83,11 +74,9 @@ export function CustomTextModal(): JSXElement {
         return;
       }
 
-      const activeLimits = [
-        value.limitWord,
-        value.limitTime,
-        value.limitSection,
-      ].filter((l) => l !== "");
+      const activeLimits = [value.limitWord, value.limitTime].filter(
+        (l) => l !== "",
+      );
       if (activeLimits.length > 1) {
         showNoticeNotification("You can only specify one limit", {
           durationMs: 5000,
@@ -98,8 +87,7 @@ export function CustomTextModal(): JSXElement {
       if (
         value.mode !== "simple" &&
         value.limitWord === "" &&
-        value.limitTime === "" &&
-        value.limitSection === ""
+        value.limitTime === ""
       ) {
         showNoticeNotification("You need to specify a limit", {
           durationMs: 5000,
@@ -107,11 +95,7 @@ export function CustomTextModal(): JSXElement {
         return;
       }
 
-      if (
-        value.limitSection === "0" ||
-        value.limitWord === "0" ||
-        value.limitTime === "0"
-      ) {
+      if (value.limitWord === "0" || value.limitTime === "0") {
         showNoticeNotification(
           "Infinite test! Make sure to use Bail Out from the command line to save your result.",
           { durationMs: 7000 },
@@ -130,13 +114,13 @@ export function CustomTextModal(): JSXElement {
         CustomText.setMode(value.mode);
       }
 
-      CustomText.setPipeDelimiter(value.pipeDelimiter);
+      // the pipe delimiter UI is gone (WORKORDER custom trim table) — always
+      // normalise back to space so a shared link can't leave the modal stuck
+      // in a mode it has no control for.
+      CustomText.setPipeDelimiter(false);
       CustomText.setText(text);
 
-      if (value.mode === "simple" && value.pipeDelimiter) {
-        CustomText.setLimitMode("section");
-        CustomText.setLimitValue(text.length);
-      } else if (value.mode === "simple") {
+      if (value.mode === "simple") {
         CustomText.setLimitMode("word");
         CustomText.setLimitValue(text.length);
       } else if (value.limitWord !== "") {
@@ -145,9 +129,6 @@ export function CustomTextModal(): JSXElement {
       } else if (value.limitTime !== "") {
         CustomText.setLimitMode("time");
         CustomText.setLimitValue(parseInt(value.limitTime));
-      } else if (value.limitSection !== "") {
-        CustomText.setLimitMode("section");
-        CustomText.setLimitValue(parseInt(value.limitSection));
       }
 
       if (getLoadedChallenge() !== null) {
@@ -168,9 +149,6 @@ export function CustomTextModal(): JSXElement {
   const isDisabled = () => longTextWarning() || challengeWarning();
   const isLimitDisabled = () => formValues().mode === "simple" || isDisabled();
 
-  const showWordLimit = () => !formValues().pipeDelimiter;
-  const showSectionLimit = () => formValues().pipeDelimiter;
-
   const cleanUpText = (): string[] => {
     let text = form.getFieldValue("text");
     if (text === "") return [];
@@ -180,29 +158,13 @@ export function CustomTextModal(): JSXElement {
     text = text.replace(/ +/gm, " ");
     text = text.replace(/( *(\r\n|\r|\n) *)/g, "\n ");
 
-    return text
-      .split(form.getFieldValue("pipeDelimiter") ? "|" : " ")
-      .filter((word) => word !== "");
+    return text.split(" ").filter((word) => word !== "");
   };
 
   const applyRemoveZeroWidth = () => {
     form.setFieldValue(
       "text",
       form.getFieldValue("text").replace(/[\u200B-\u200D\u2060\uFEFF]/g, ""),
-    );
-  };
-
-  const applyRemoveFancyTypography = () => {
-    form.setFieldValue(
-      "text",
-      Strings.cleanTypographySymbols(form.getFieldValue("text")),
-    );
-  };
-
-  const applyReplaceControlChars = () => {
-    form.setFieldValue(
-      "text",
-      Strings.replaceControlCharacters(form.getFieldValue("text")),
     );
   };
 
@@ -219,26 +181,6 @@ export function CustomTextModal(): JSXElement {
     form.setFieldValue("text", text);
   };
 
-  const handleDelimiterChange = (newPipeDelimiter: boolean) => {
-    const currentPipeDelimiter = form.getFieldValue("pipeDelimiter");
-    let newtext = form
-      .getFieldValue("text")
-      .split(currentPipeDelimiter ? "|" : " ")
-      .join(newPipeDelimiter ? "|" : " ");
-    newtext = newtext.replace(/\n /g, "\n");
-
-    batch(() => {
-      form.setFieldValue("text", newtext);
-      form.setFieldValue("pipeDelimiter", newPipeDelimiter);
-      if (newPipeDelimiter && form.getFieldValue("limitWord") !== "") {
-        form.setFieldValue("limitWord", "");
-      }
-      if (!newPipeDelimiter && form.getFieldValue("limitSection") !== "") {
-        form.setFieldValue("limitSection", "");
-      }
-    });
-  };
-
   const initState = () => {
     let mode: Mode = CustomText.getMode();
     if (
@@ -249,32 +191,26 @@ export function CustomTextModal(): JSXElement {
       mode = "simple";
     }
 
-    const pipeDelimiter = CustomText.getPipeDelimiter();
     let limitWord = "";
     let limitTime = "";
-    let limitSection = "";
 
     if (mode !== "simple") {
-      if (CustomText.getLimitMode() === "word") {
-        limitWord = `${CustomText.getLimitValue()}`;
-      } else if (CustomText.getLimitMode() === "time") {
+      if (CustomText.getLimitMode() === "time") {
         limitTime = `${CustomText.getLimitValue()}`;
-      } else if (CustomText.getLimitMode() === "section") {
-        limitSection = `${CustomText.getLimitValue()}`;
+      } else {
+        // "section" can only come from a shared link or practise words; the
+        // modal has no pipe delimiter anymore, so show it as a word limit.
+        limitWord = `${CustomText.getLimitValue()}`;
       }
     }
 
-    const text = CustomText.getText()
-      .join(pipeDelimiter ? "|" : " ")
-      .replace(/^ +/gm, "");
+    const text = CustomText.getText().join(" ").replace(/^ +/gm, "");
 
     untrack(() => {
       batch(() => {
         form.setFieldValue("mode", mode);
         form.setFieldValue("limitWord", limitWord);
         form.setFieldValue("limitTime", limitTime);
-        form.setFieldValue("limitSection", limitSection);
-        form.setFieldValue("pipeDelimiter", pipeDelimiter);
         form.setFieldValue("text", text);
       });
     });
@@ -301,9 +237,7 @@ export function CustomTextModal(): JSXElement {
     }
 
     const incomingText =
-      data.splitText !== undefined
-        ? data.splitText.join(form.getFieldValue("pipeDelimiter") ? "|" : " ")
-        : data.text;
+      data.splitText !== undefined ? data.splitText.join(" ") : data.text;
 
     const newText =
       (data.set ?? true)
@@ -315,7 +249,6 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue("mode", "simple");
         form.setFieldValue("limitWord", `${cleanUpText().length}`);
         form.setFieldValue("limitTime", "");
-        form.setFieldValue("limitSection", "");
       });
     });
   };
@@ -378,15 +311,9 @@ export function CustomTextModal(): JSXElement {
       if (value === "simple") {
         form.setFieldValue("limitWord", "");
         form.setFieldValue("limitTime", "");
-        form.setFieldValue("limitSection", "");
       } else if (previousMode === "simple") {
-        const text = cleanUpText();
         form.setFieldValue("limitTime", "");
-        if (form.getFieldValue("pipeDelimiter")) {
-          form.setFieldValue("limitSection", `${text.length}`);
-        } else {
-          form.setFieldValue("limitWord", `${text.length}`);
-        }
+        form.setFieldValue("limitWord", `${cleanUpText().length}`);
       }
     });
   };
@@ -533,36 +460,18 @@ export function CustomTextModal(): JSXElement {
               icon="fa-step-forward"
               sub="Control how many words to generate or for how long you want to type."
             >
-              <div class={cn("flex w-full items-center gap-4")}>
+              <div class="flex w-full items-center gap-4">
                 <form.Field name="limitWord">
                   {(field) => (
                     <input
                       type="number"
-                      class={cn("w-full", !showWordLimit() && "hidden")}
+                      class="w-full"
                       min="0"
                       placeholder="words"
                       value={field().state.value}
                       disabled={isLimitDisabled()}
                       onInput={(e) => {
                         field().handleChange(e.currentTarget.value);
-                        form.setFieldValue("limitTime", "");
-                        form.setFieldValue("limitSection", "");
-                      }}
-                    />
-                  )}
-                </form.Field>
-                <form.Field name="limitSection">
-                  {(field) => (
-                    <input
-                      type="number"
-                      class={cn("w-full", !showSectionLimit() && "hidden")}
-                      min="0"
-                      placeholder="sections"
-                      value={field().state.value}
-                      disabled={isLimitDisabled()}
-                      onInput={(e) => {
-                        field().handleChange(e.currentTarget.value);
-                        form.setFieldValue("limitWord", "");
                         form.setFieldValue("limitTime", "");
                       }}
                     />
@@ -581,35 +490,10 @@ export function CustomTextModal(): JSXElement {
                       onInput={(e) => {
                         field().handleChange(e.currentTarget.value);
                         form.setFieldValue("limitWord", "");
-                        form.setFieldValue("limitSection", "");
                       }}
                     />
                   )}
                 </form.Field>
-              </div>
-            </SettingsGroup>
-
-            <SettingsGroup
-              title="Word delimiter"
-              icon="fa-grip-lines-vertical"
-              sub="Change how words are separated. Using the pipe delimiter allows you to randomize groups of words."
-            >
-              <div class="flex w-full gap-2">
-                <For each={delimiterOptions}>
-                  {(opt) => (
-                    <Button
-                      variant="button"
-                      text={opt.label}
-                      class="flex-1"
-                      active={
-                        formValues().pipeDelimiter === (opt.value === "true")
-                      }
-                      onClick={() =>
-                        handleDelimiterChange(opt.value === "true")
-                      }
-                    />
-                  )}
-                </For>
               </div>
             </SettingsGroup>
             <Separator />
@@ -629,12 +513,6 @@ export function CustomTextModal(): JSXElement {
               />
               <Button
                 variant="button"
-                fa={{ icon: "fa-filter" }}
-                text="words filter"
-                onClick={() => showModal("WordFilter")}
-              />
-              <Button
-                variant="button"
                 fa={{ icon: "fa-cogs" }}
                 text="custom generator"
                 onClick={() => showModal("CustomGenerator")}
@@ -651,34 +529,6 @@ export function CustomTextModal(): JSXElement {
                 text="apply"
                 class="w-full"
                 onClick={applyRemoveZeroWidth}
-              />
-            </SettingsGroup>
-
-            <SettingsGroup
-              title="Remove fancy typography"
-              icon="fa-pen-fancy"
-              sub={
-                'Standardises typography symbols (for example \u201c and \u201d become ")'
-              }
-            >
-              <Button
-                variant="button"
-                text="apply"
-                class="w-full"
-                onClick={applyRemoveFancyTypography}
-              />
-            </SettingsGroup>
-
-            <SettingsGroup
-              title="Replace control characters"
-              icon="fa-code"
-              sub="Replace control characters (\n becomes a new line and \t becomes a tab)"
-            >
-              <Button
-                variant="button"
-                text="apply"
-                class="w-full"
-                onClick={applyReplaceControlChars}
               />
             </SettingsGroup>
 
@@ -708,7 +558,6 @@ export function CustomTextModal(): JSXElement {
       </AnimatedModal>
       <SaveCustomTextModal textToSave={textToSave} />
       <SavedTextsModal setChainedData={setIncomingChainedData} />
-      <WordFilterModal setChainedData={setIncomingChainedData} />
       <CustomGeneratorModal setChainedData={setIncomingChainedData} />
     </>
   );

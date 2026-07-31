@@ -20,6 +20,7 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 | 登录 | 游客可玩 random(成绩存本地);上传书 / 云端存档需 Google 登录 |
 | Landing 文案 | **`Upload & Type` / `Random Mode`** |
 | 设计语言 | **全站默认玻璃拟态**(毛玻璃透明卡片 + 按钮 + 背景);弹窗出现时背景整体模糊;**其余 setting 项可沿用 monkeytype 现有**。**视觉定稿:B「Ink Aurora」**(吸收 C 的高对比度与 A 的光标动效),全部 token 以 `design/README.md` 为准 |
+| 书架数据模型 | **统一成「书」**(用户定 2026-07-31):书架里每一项都是书、都带进度指针;取消 `Save custom text` 的 `Long text (book mode)` 勾选框(保存即建书);旧的无进度 saved text 迁移为 `progress: 0` 的书。理由:产品本体就是打自己的书,两套语义无意义,且 M3 指针制要求每本都有指针 |
 | 后端 / DB / Auth | **Supabase**(用户 2026-07-22 已建项目;Postgres + Auth + Storage;取代原 fork 自带 Firebase+Mongo+Redis)→ M6 接线 |
 | 部署 | 前端(GPL 静态)→ **Vercel**(`vercel.json` 已配;import 时 Application Preset 选 **Other**,避开 monorepo 多服务检测,勿选 Vite/Services);后端 API 部署 M6 定 |
 
@@ -87,7 +88,8 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 | open file / custom generator | 保留 |
 | remove zero-width characters | 保留 |
 | replace new lines with spaces(space / period+space) | 保留 |
-| limit 输入区、word delimiter(pipe) | 删 |
+| limit 输入区(words / time) | **保留**(2026-07-31 用户改判,原定删:临时粘贴文本仍需要能限词/限时;打书的回合设置另由 M3 书籍层实现) |
+| word delimiter(pipe) | 删(连带 `sections` 限制格一并消失,它只在 pipe 模式下出现) |
 | remove fancy typography、replace control characters | 删 |
 | words filter | **默认删**(用户未表态,可翻案) |
 
@@ -144,7 +146,7 @@ monkeytype 的手感和数据体验 + 导入自己的书(PDF/EPUB/TXT,中英文)
 ## 分期
 
 - **M1 ✅ 已完成(2026-07-30)** fork + 大裁剪(quote/zen/皇冠/info/铃铛/广告/排行榜/Sentry)+ 重品牌 + landing 双入口 + 游客模式 → 详见 `docs/plans/M1.md`。**a fork ✅ / 部署管线 ✅ / b 裁剪 + 永久零广告 ✅ / c 品牌 + Ink Aurora + 玻璃 v1 ✅ / d Landing 双入口 ✅**;路由现为 `/`=landing、`/test`=打字页、`/bookshelf`=书架占位
-- **M2** custom 弹窗裁剪 + saved texts 升级书架
+- **M2 进行中** custom 弹窗裁剪 + saved texts 升级书架 → 详见 `docs/plans/M2.md`。**a 弹窗裁剪 ✅(2026-07-31)/ b 本地书籍数据层 + 书架页 ⬜ / c 书架操作闭环 ⬜**
 - **M3** 书籍层:指针连续性引擎、双进度条、上/下块箭头、双结算、顺序 + 章节/页随机、符号跳过;热力图本地记数开始
 - **M4** 解析管道:本地 + AI 清洗/OCR + 章节识别 + 仿版式选页弹窗(选文本→预览→开始)
 - **M5** 中文 IME + CPM
