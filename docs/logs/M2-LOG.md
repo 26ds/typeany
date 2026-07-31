@@ -36,3 +36,37 @@
   - **从命令面板打开 custom 弹窗时 textarea 是空的**(上游既有行为,非本期引入):命令面板本身是 modal,`showModal("CustomText")` 走 `states/modals.ts:64` 的 chain 分支 → `beforeShow(isChained=true)` → 只跑 `handleIncomingData()` 而不跑 `initState()`,表单停在默认空值。配置条 `custom → change` 路径正常回填。M2c 接线时若顺手能修就修,否则记在这里。
   - 浏览器自动化环境下,打字页「未聚焦」遮罩会吞掉配置条按钮的指针点击(需要多点一次);本次改用命令面板 + DOM 事件完成验证。真人使用不受影响,与 M1d 记录的后台标签页动画问题同属自动化环境限制。
 - 下一步:**M2b** 本地书籍数据层(`ts/books/local-books.ts`:书模型 + zod migrate + 旧短文本迁移)+ 书架页只读展示(玻璃书卡、进度条、空态)。
+
+---
+
+## M2b — 本地书籍数据层 + 书架页(只读)(2026-07-31)
+
+- 实现:
+  - 新建 **`ts/books/local-books.ts`**:书模型 `{ text, progress, wordCount, createdAt, lastOpenedAt }`(名字是 record 的 key,对外类型 `Book` 再把 `name` 拼回去)。对外 API:`listBooks / getBookNames / getBook / getBookWords / addBook / deleteBook / renameBook / setProgress / resetProgress / touchBook / getProgressPercentage / splitWords`。
+  - **`test/custom-text.ts` 的所有 long 分支改为委托本模块**,函数签名与抛错行为不变 → `test-logic.ts` 的进度回写零改动。原 `CustomTextLongObjectSchema` / `customTextLongLS` / `getLocalStorageLong` / `setLocalStorageLong` 删除。
+  - **`BookshelfPage.tsx` 重写**为真实书架:玻璃书卡网格(书名 / 词数 / 进度条 + 百分比 / 上次打开)、空态面板、页头计数;字体从占位页的等宽换成 landing 同款 sans(M1d LOG 遗留项已清)。
+- 交互逻辑 / 边界:
+  - **沿用上游 `customTextLong` 这个 localStorage key**,老用户的书原地可用。但要求 **local-books 是该 key 的唯一读写方** —— 上游 `custom-text.ts` 里的 zod object 会在每次 `setCustomTextLongProgress` 的读改写中把新字段 strip 掉,所以委托不是"顺手重构",是正确性前提。
+  - `migrate` 逐条抢救:老 `{text, progress}` 补 `wordCount`(现算)/ `createdAt` / `lastOpenedAt`(取当时);单条解析不出 `text` 才丢弃,不整表回退。
+  - **D1 旧短文本入架**:一次性把老 `customText` 里的条目当 `progress: 0` 的书导入,**不删旧 key**,用单独的 `typeanyShortTextsImported` 标记防止用户删了书下次又冒出来;同名冲突时保留书、跳过短文本。写入失败(配额)则不置标记,下次重试。
+  - `splitWords` = `split(/ +/)` 再滤掉空串:上游的裸 `split` 会把前导/连续空格算成词,让进度指针整体错位。`wordCount` 与 `getBookWords` 用同一函数,口径一致。
+  - `setProgress` clamp 到 `[0, wordCount]`;`listBooks` 按 `lastOpenedAt` 倒序(并列时按 `createdAt`)。
+  - 书架页组件在 app 启动时就被创建(`Page` 的 `Show` 在内部),所以用 `createEffect` 监听 `getActivePage() === "bookshelf"` 重读,而不是靠挂载时机 —— 否则进度变了回书架看到的是启动那一刻的快照。
+  - 卡片"上次打开"在 `lastOpenedAt === createdAt` 时显示 **Never opened**,不假装刚打开过(迁移进来的书 `lastOpenedAt` 只能取当时,不写这条会误导)。
+- 关键文件:`ts/books/local-books.ts`(新,约 230 行)、`ts/test/custom-text.ts`(long 分支委托,244 → 213 行)、`ts/components/pages/BookshelfPage.tsx`(重写,49 → 146 行)。
+- 计划外变更:
+  1. **旧短文本迁移方式**:计划只写了"一并迁入"。落地改成「一次性标记 + 保留旧 key」。原因:若把旧 key 清空,`custom-text.ts` 与 local-books 会有两个 `LocalStorageWithSchema` 实例操作同一份数据、缓存不一致;而且没必要销毁用户数据。
+  2. 新增 `splitWords` 的空串过滤与 `setProgress` 的 clamp(上游都没有,见上)。
+  3. **进度条用 `--main-color` 而不是设计稿的琥珀 `#FFC46B`**:该色在主题变量里只落在 `colorfulError` 槽位,拿"错误色"当进度色语义不对,且换主题会变成红色。是否给"书籍/进度"单开一个 token 留给 M3 定。
+  4. 书卡加 `min-w-0`:移动端长书名会把 grid item 撑破(实测溢出),加上后正常省略号截断。
+- 验证:
+  - `pnpm lint-fe` **0 error / 0 warning**(591 文件);`RECAPTCHA_SITE_KEY=<占位> pnpm build-fe` 绿(exit 0)。
+  - **迁移实测**:手工塞入老格式 `customTextLong`(`Moby Dick ch1` 120 词 progress 30、`Untouched book`)+ 老 `customText`(`old snippet`、以及一个与书**同名**的 `Untouched book`)→ 刷新 `/bookshelf`:3 本书,`Moby Dick ch1` 显示 30/120 = 25%,`old snippet` 以 0% 入架,同名的短文本被跳过、真书内容未被覆盖;存储里 5 个字段齐全,`typeanyShortTextsImported` = "1",旧 `customText` 原样保留。
+  - **进度回写端到端**:`Untouched book`(5 词)载入打字页 → 打完 `alpha`、`bravo` 两词、第三词打了一半 → bail out → 书里 `progress` 0 → 2,**且 `wordCount` / `createdAt` / `lastOpenedAt` 三个新字段没有被 strip**;回书架显示 2 / 5 words、40%;重新载入该书时 `CustomText.getText()` 返回 `["charlie","delta","echo"]`,断点续打正确。
+  - 空态、桌面三列栅格、移动端(375 宽)单列 + 长书名省略号、`Never opened` / `Opened … ago` 两种文案、按 `lastOpenedAt` 倒序 —— 均实测通过。
+- 已知问题 / 未完:
+  - **书架现在是只读的**:没有导入、开始/继续、重命名、重置、删除按钮 —— 全在 M2c。目前唯一的建书途径仍是 custom 弹窗的 `save` + `Long text (book mode)`。
+  - 迁移标记置位后,**M2c 之前**新存的"短文本"不会再自动进书架(旧 key 仍收着)。M2c 取消短文本这条路后此问题消失。
+  - "Opened … ago" 走 `date-fns` 的英文相对时间,中文化归 M5。
+  - 自动化环境限制(同 M1d / M2a 记录):浏览器 pane 的标签页处于 hidden 时 rAF 不跑,`TestLogic.finish()` 里的淡出动画会卡住;本次靠截图逼出帧来完成验证。真人使用不受影响。
+- 下一步:**M2c** 书架操作闭环(导入 .txt / 粘贴建书、开始/继续、重置进度、重命名、下载、删除,`saved texts` 按钮改跳 `/bookshelf`,退役 `SavedTextsModal`)。

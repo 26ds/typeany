@@ -5,25 +5,14 @@ import {
   CustomTextSettings,
   CustomTextSettingsSchema,
 } from "@monkeytype/schemas/results";
+import * as LocalBooks from "../books/local-books";
 
 const CustomTextObjectSchema = z.record(z.string(), z.string());
 type CustomTextObject = z.infer<typeof CustomTextObjectSchema>;
 
-const CustomTextLongObjectSchema = z.record(
-  z.string(),
-  z.object({ text: z.string(), progress: z.number() }),
-);
-type CustomTextLongObject = z.infer<typeof CustomTextLongObjectSchema>;
-
 const customTextLS = new LocalStorageWithSchema({
   key: "customText",
   schema: CustomTextObjectSchema,
-  fallback: {},
-});
-//todo maybe add migrations here?
-const customTextLongLS = new LocalStorageWithSchema({
-  key: "customTextLong",
-  schema: CustomTextLongObjectSchema,
   fallback: {},
 });
 
@@ -131,14 +120,17 @@ export function getData(): CustomTextSettings {
   return customTextSettings.get();
 }
 
+// everything `long` below is the bookshelf — `books/local-books.ts` owns the
+// `customTextLong` storage now (M2b), these are kept as thin wrappers so the
+// existing callers (test-logic progress write-back, the modals) don't change.
+
 export function getCustomText(name: string, long = false): string[] {
   if (long) {
-    const customTextLong = getLocalStorageLong();
-    const customText = customTextLong[name];
-    if (customText === undefined) {
+    const words = LocalBooks.getBookWords(name);
+    if (words === undefined) {
       throw new Error(`Custom text ${name} not found`);
     }
-    return customText.text.split(/ +/);
+    return words;
   } else {
     const customText = getLocalStorage()[name];
     if (customText === undefined) {
@@ -154,25 +146,7 @@ export function setCustomText(
   long = false,
 ): boolean {
   if (long) {
-    const customText = getLocalStorageLong();
-
-    customText[name] = {
-      text: "",
-      progress: 0,
-    };
-
-    const textByName = customText[name];
-    if (textByName === undefined) {
-      throw new Error("Custom text not found");
-    }
-
-    if (typeof text === "string") {
-      textByName.text = text;
-    } else {
-      textByName.text = text.join(" ");
-    }
-
-    return setLocalStorageLong(customText);
+    return LocalBooks.addBook(name, text);
   } else {
     const customText = getLocalStorage();
 
@@ -187,56 +161,48 @@ export function setCustomText(
 }
 
 export function deleteCustomText(name: string, long: boolean): void {
-  const customText = long ? getLocalStorageLong() : getLocalStorage();
+  if (long) {
+    LocalBooks.deleteBook(name);
+    return;
+  }
+
+  const customText = getLocalStorage();
 
   // oxlint-disable-next-line no-dynamic-delete
   delete customText[name];
 
-  if (long) {
-    setLocalStorageLong(customText as CustomTextLongObject);
-  } else {
-    setLocalStorage(customText as CustomTextObject);
-  }
+  setLocalStorage(customText);
 }
 
 export function getCustomTextLongProgress(name: string): number {
-  const customText = getLocalStorageLong()[name];
-  if (customText === undefined) throw new Error("Custom text not found");
+  const book = LocalBooks.getBook(name);
+  if (book === undefined) throw new Error("Custom text not found");
 
-  return customText.progress ?? 0;
+  return book.progress;
 }
 
 export function setCustomTextLongProgress(
   name: string,
   progress: number,
 ): void {
-  const customTexts = getLocalStorageLong();
-  const customText = customTexts[name];
-  if (customText === undefined) throw new Error("Custom text not found");
+  if (LocalBooks.getBook(name) === undefined) {
+    throw new Error("Custom text not found");
+  }
 
-  customText.progress = progress;
-  setLocalStorageLong(customTexts);
+  LocalBooks.setProgress(name, progress);
 }
 
 function getLocalStorage(): CustomTextObject {
   return customTextLS.get();
 }
 
-function getLocalStorageLong(): CustomTextLongObject {
-  return customTextLongLS.get();
-}
-
 function setLocalStorage(data: CustomTextObject): boolean {
   return customTextLS.set(data);
 }
 
-function setLocalStorageLong(data: CustomTextLongObject): boolean {
-  return customTextLongLS.set(data);
-}
-
 export function getCustomTextNames(long = false): string[] {
   if (long) {
-    return Object.keys(getLocalStorageLong());
+    return LocalBooks.getBookNames();
   } else {
     return Object.keys(getLocalStorage());
   }
