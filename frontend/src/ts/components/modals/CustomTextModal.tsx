@@ -7,12 +7,17 @@ import type { FaSolidIcon } from "../../types/font-awesome";
 
 import { setConfig } from "../../config/setters";
 import { Config } from "../../config/store";
+import { navigate } from "../../controllers/route-controller";
 import { restartTestEvent } from "../../events/test";
 import {
   getCustomTextIndicator,
   setCustomTextIndicator,
 } from "../../states/core";
-import { hideModalAndClearChain, showModal } from "../../states/modals";
+import {
+  hideModal,
+  hideModalAndClearChain,
+  showModal,
+} from "../../states/modals";
 import {
   showNoticeNotification,
   showErrorNotification,
@@ -29,7 +34,6 @@ import { SubmitButton } from "../ui/form/SubmitButton";
 import { TextareaField } from "../ui/form/TextareaField";
 import { CustomGeneratorModal } from "./CustomGeneratorModal";
 import { SaveCustomTextModal } from "./SaveCustomTextModal";
-import { SavedTextsModal } from "./SavedTextsModal";
 
 export type CustomTextIncomingData =
   | ({ set?: boolean; long?: boolean } & (
@@ -361,11 +365,15 @@ export function CustomTextModal(): JSXElement {
                   showModal("SaveCustomText");
                 }}
               />
+              {/* M2c: saved texts is the bookshelf now (WORKORDER 裁剪表) */}
               <Button
                 variant="button"
-                fa={{ icon: "fa-folder" }}
-                text="saved texts"
-                onClick={() => showModal("SavedTexts")}
+                fa={{ icon: "fa-book-open" }}
+                text="bookshelf"
+                onClick={() => {
+                  hideModal("CustomText");
+                  void navigate("/bookshelf");
+                }}
               />
             </div>
 
@@ -557,7 +565,6 @@ export function CustomTextModal(): JSXElement {
         </form>
       </AnimatedModal>
       <SaveCustomTextModal textToSave={textToSave} />
-      <SavedTextsModal setChainedData={setIncomingChainedData} />
       <CustomGeneratorModal setChainedData={setIncomingChainedData} />
     </>
   );

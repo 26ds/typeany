@@ -71,3 +71,35 @@
   - 自动化环境限制(同 M1d / M2a 记录):浏览器 pane 的标签页处于 hidden 时 rAF 不跑,`TestLogic.finish()` 里的淡出动画会卡住;本次靠截图逼出帧来完成验证。真人使用不受影响。
 - 线上复验(2026-07-31,https://typeany.vercel.app):push 后 Vercel 自动部署已生效 —— custom 弹窗为 M2a 裁剪后的样子(只剩 mode / limit / open file / custom generator / remove zero-width / replace new lines),`/bookshelf` 为 M2b 新书架。线上走通「custom → change → 粘贴文本 → save → 勾 Long text(book mode) → 命名保存 → /bookshelf」,书卡正确显示 `85 words / Not started / 0% / Never opened`。**用户反馈"线上没看到新功能",实为 M2b 书架默认空 + 只读、没有任何建书入口所致 —— 这是 M2c 要解决的,不是部署问题。**
 - 下一步:**M2c** 书架操作闭环(导入 .txt / 粘贴建书、开始/继续、重置进度、重命名、下载、删除,`saved texts` 按钮改跳 `/bookshelf`,退役 `SavedTextsModal`)。
+
+---
+
+## M2c — 书架操作闭环 + 虚线上传卡 + 多格式文本提取(2026-08-01)
+
+- 实现:
+  - 新建 **`ts/books/extract-text.ts`**:统一出口 `extractText(file) → { text, title }`,按扩展名分派 **txt / md / docx / pdf / epub**;失败一律抛 `ExtractTextError`,带 `kind` 字段(`unsupported-format / empty-file / too-large / corrupt-file / scanned-pdf / no-text`)。
+  - **书架虚线上传卡**(D5):排在书卡网格末尾、占一个格子,支持点选文件与**拖放**;附 `paste text` 次要入口。上传中显示转圈与 "Reading your file…"。M2b 那个纯文字空态被它取代。
+  - **书卡操作**:`start` / `continue`(按指针)、重置进度、重命名、下载 `.txt`、删除。重置与删除走 `showSimpleModal` 二次确认;重命名与粘贴也复用 `showSimpleModal` 的 schema + inputs,**没有新建任何 AnimatedModal / ModalId**。
+  - **接线**:custom 弹窗 `saved texts` → 改成 `bookshelf` 按钮(关弹窗 + `navigate("/bookshelf")`);`SavedTextsModal` 停止渲染(文件保留,orphan);按 **D1** 删掉 `SaveCustomTextModal` 的 `Long text (book mode)` 勾选框 —— **保存即建书**,标题改为 "Save to bookshelf"。
+  - `vite.config.ts`:解析器不进任何 chunk group,靠动态 `import()` 自然分片。
+- 交互逻辑 / 边界:
+  - **五种格式**:txt 直读;md 剥标记(frontmatter / 围栏代码 / 标题 / 引用 / 列表 / 表格 / 强调 / 图片,链接保留文字);docx 走 `mammoth.extractRawText`;pdf 用 `pdfjs-dist` 逐页 `getTextContent()`;epub 用 `fflate` 解 zip → 读 `container.xml` → OPF spine → 各 XHTML 的 `textContent`(**不引 epub.js**,那是整套渲染器,"提取字符"用不上)。
+  - **不静默失败**:扫描版 PDF(无文字层)明确报"这是扫描版、需要 M4 的 AI 解析",**不建空书**;不认的扩展名、空文件、超 100MB、解析崩溃各报各的;错误通知 8 秒 + important。
+  - **重名不覆盖**:文件名撞上已有书时弹"Name this book"让用户改名(预填 `xxx (2)`),而不是悄悄加后缀或覆盖原书。
+  - 清洗:`normalize()` → 去零宽字符 → `\s+` 合一 → `trim`,与 custom 弹窗同源;书名默认取文件名去扩展名。
+  - `openBook` 在 `navigate("/test")` 之后**先确认真的到了打字页**才 `restartTestEvent.dispatch()` —— `navigate()` 在页面忙时会静默 no-op,不判断就会在书架页上重开测试。
+- 关键文件:`ts/books/extract-text.ts`(新,约 300 行)、`ts/components/pages/BookshelfPage.tsx`(146 → 400 行)、`ts/components/modals/CustomTextModal.tsx`(saved texts → bookshelf)、`ts/components/modals/SaveCustomTextModal.tsx`(去勾选框)、`ts/components/ui/form/TextareaField.tsx`、`vite.config.ts`。
+- 计划外变更:
+  1. **顺手修了一个上游 bug**:`TextareaField` 把 `field.state.value` 直接赋给 `textarea.value`,默认值为 `undefined` 时会在框里显示字符串 `"undefined"`(粘贴弹窗一打开就能看到)。改成 `?? ""`。影响所有用 textarea 的 `SimpleModal`。
+  2. **打包分组**:原计划给解析器单开一个 `vendor-parsers` group。实测**不能这么做** —— vite 的 preload helper 会被分进这个 group,而 entry 静态 import 它,于是 index.html 给 `vendor-parsers` 加了 `<link rel="modulepreload">`,930kB 每次开页面都下载。改成把三个包排除在 `vendor` group 之外、不给它们任何 group,让动态 `import()` 自己成块。验证:index.html 的 preload 列表里没有解析器块;`vendor` 从 1166kB 降回 678kB;entry 973 → 974kB(几乎没变)。
+  3. epub 的 `textContent` 会把相邻块级元素粘成一个词(`Chapter OneThe quick…`),给块级元素补了尾随空格。
+- 验证:
+  - `pnpm lint-fe` 0/0(593 文件);`RECAPTCHA_SITE_KEY=<占位> pnpm build-fe` 绿。
+  - **五种格式逐个实测**(在页面里现造文件跑 `extractText`):txt 34 词 / md 22 词(frontmatter 与代码块已剥掉)/ docx 36 词 / epub 38 词 / 文本型 pdf 36 词,首句都对得上原文。
+  - **三种失败实测**:扫描版 pdf → `scanned-pdf`;`.rtf` → `unsupported-format`;空 txt → `empty-file`,文案各不相同,且都没建出书。
+  - **UI 全链路**:传 pdf → 书卡 `36 words / Not started / 0% / Never opened` → `start` → 打字页显示书名与 `shift + enter to save progress`、正文就是 PDF 里的字;粘贴建书(带乱空格/换行/Tab)→ 存成 `alpha bravo charlie delta echo` 5 词;重名再传 → 弹改名框、原书 36 词未被 5 词的新文件覆盖;重命名 → 卡片即时更新;删除 → 二次确认后计数 2 → 1;custom 弹窗 `bookshelf` 按钮 → 关弹窗并跳转。
+- 已知问题 / 未完:
+  - 书架还没有搜索 / 排序 / 封面(按需,不进 M2)。
+  - 打书仍是"一次把剩下全部铺出来",**没有每轮字数与左右箭头** —— 那是紧接着的 M2d。
+  - 自动化环境限制照旧:浏览器 pane 标签页 hidden 时 rAF 不跑,弹窗进出场动画与 `navigate()` 的 `PageTransition` 标志会卡住(本次一度让 `bookshelf` 按钮看似无效,清掉标志后正常)。真人使用不受影响。
+- 下一步:**M2d** 打书回合胶囊条(默认 25 词)+ 左右箭头切段。

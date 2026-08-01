@@ -30,7 +30,9 @@ export function TextareaField(props: {
         name={props.field().name as string}
         placeholder={props.placeholder ?? ""}
         autocomplete={props.autocomplete}
-        value={props.field().state.value as string}
+        // an undefined default (SimpleModal inputs without initVal) would be
+        // assigned to textarea.value verbatim and show the text "undefined"
+        value={(props.field().state.value ?? "") as string}
         onBlur={() => props.field().handleBlur()}
         onInput={(e) => props.field().handleChange(e.currentTarget.value)}
         disabled={props.disabled}

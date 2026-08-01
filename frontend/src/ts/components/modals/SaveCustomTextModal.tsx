@@ -11,7 +11,6 @@ import {
 } from "../../states/notifications";
 import * as CustomText from "../../test/custom-text";
 import { AnimatedModal } from "../common/AnimatedModal";
-import { Checkbox } from "../ui/form/Checkbox";
 import { InputField } from "../ui/form/InputField";
 import { SubmitButton } from "../ui/form/SubmitButton";
 import { fromSchema } from "../ui/form/utils";
@@ -31,8 +30,10 @@ export function SaveCustomTextModal(props: {
   const form = createForm(() => ({
     defaultValues: {
       name: "",
-      isLong: false,
     },
+    // D1 (WORKORDER 已定决策): everything saved is a book with a progress
+    // pointer, so the old "Long text (book mode)" checkbox is gone and `long`
+    // is always true.
     onSubmit: ({ value }) => {
       const text = props.textToSave();
       if (text.length === 0) {
@@ -40,10 +41,10 @@ export function SaveCustomTextModal(props: {
         return;
       }
 
-      const saved = CustomText.setCustomText(value.name, text, value.isLong);
+      const saved = CustomText.setCustomText(value.name, text, true);
       if (saved) {
-        setCustomTextIndicator(value);
-        showSuccessNotification("Custom text saved");
+        setCustomTextIndicator({ name: value.name, isLong: true });
+        showSuccessNotification(`Saved to your bookshelf as "${value.name}"`);
         hideModal("SaveCustomText");
       } else {
         showErrorNotification("Error saving custom text");
@@ -54,7 +55,7 @@ export function SaveCustomTextModal(props: {
   return (
     <AnimatedModal
       id="SaveCustomText"
-      title="Save custom text"
+      title="Save to bookshelf"
       modalClass="max-w-sm"
       focusFirstInput={true}
       beforeShow={() => {
@@ -78,8 +79,7 @@ export function SaveCustomTextModal(props: {
                 return schemaErrors;
               }
 
-              const isLong = form.getFieldValue("isLong");
-              if (CustomText.getCustomTextNames(isLong).includes(value)) {
+              if (CustomText.getCustomTextNames(true).includes(value)) {
                 return "Duplicate name";
               }
 
@@ -88,21 +88,10 @@ export function SaveCustomTextModal(props: {
           }}
           children={(field) => <InputField field={field} placeholder="name" />}
         />
-        <form.Field
-          name="isLong"
-          listeners={{
-            onChange: () => {
-              void form.validateField("name", "change");
-            },
-          }}
-          children={(field) => (
-            <Checkbox field={field} label="Long text (book mode)" />
-          )}
-        />
         <div class="text-xs text-sub">
-          Disables editing this text but allows you to save progress by pressing
-          shift + enter or bailing out. You can then load this text again to
-          continue where you left off.
+          The book keeps your place: press shift + enter or bail out to save
+          progress, then continue from the bookshelf. Editing this text here
+          stops the tracking.
         </div>
         <SubmitButton form={form} variant="button" text="save" />
       </form>

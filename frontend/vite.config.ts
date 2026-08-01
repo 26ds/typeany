@@ -195,6 +195,12 @@ function getPlugins({
   );
 }
 
+// pnpm's real paths look like `node_modules/.pnpm/pdfjs-dist@6/node_modules/
+// pdfjs-dist/...`, so match the package directory rather than a path prefix
+function isBookParser(id: string): boolean {
+  return /node_modules\/(pdfjs-dist|mammoth|fflate)\//.test(id);
+}
+
 function getBuildOptions({
   enableSourceMaps,
 }: {
@@ -268,8 +274,15 @@ function getBuildOptions({
               test: /src\/ts\/utils\//,
             },
             {
+              // the book parsers are deliberately left ungrouped so they stay
+              // in the async chunks their dynamic `import()`s create — someone
+              // who never uploads a book should never download pdf.js
+              // (see ts/books/extract-text.ts). Naming them as their own group
+              // does not work: the group ends up holding vite's preload helper,
+              // which the entry imports statically, dragging all ~930kB in.
               name: "vendor",
-              test: /node_modules\//,
+              test: (id: string) =>
+                id.includes("node_modules") && !isBookParser(id),
             },
           ],
         },
