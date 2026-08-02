@@ -1,4 +1,5 @@
 import * as PageController from "./page-controller";
+import { clearLegacyBookLeakage, endBookSession } from "../books/book-session";
 import * as PageTransition from "../legacy-states/page-transition";
 import { isAuthAvailable } from "../firebase";
 import { isAuthenticated } from "../states/core";
@@ -65,6 +66,16 @@ const routes: Route[] = [
     path: "/bookshelf",
     load: async (_params, options) => {
       await PageController.change("bookshelf", options);
+    },
+  },
+  {
+    // the book typing page. It renders the test page — the engine is the same
+    // one — but under its own URL, and the book session decides which config
+    // bar shows (WORKORDER「Random 模式 与 书籍模式 的边界」). Same trick
+    // `/verify` already uses below.
+    path: "/read",
+    load: async (_params, options) => {
+      await PageController.change("test", options);
     },
   },
   {
@@ -200,6 +211,13 @@ export async function navigate(
 
   url = url.replace(/\/$/, "");
   if (url === "") url = "/";
+
+  // leaving the book typing page closes the book and hands Random Mode back
+  // its own custom text (WORKORDER「Random 模式 与 书籍模式 的边界」)
+  if (!url.startsWith("/read")) {
+    endBookSession();
+  }
+  clearLegacyBookLeakage();
 
   // only push to history if we're navigating to a different URL
   const currentUrl = new URL(window.location.href);

@@ -120,6 +120,15 @@ export function getData(): CustomTextSettings {
   return customTextSettings.get();
 }
 
+/** used by books/book-session.ts to put Random's own text back */
+export function setData(data: CustomTextSettings): void {
+  customTextSettings.set(data);
+}
+
+export function resetToDefault(): void {
+  customTextSettings.set(structuredClone(defaultCustomTextSettings));
+}
+
 // everything `long` below is the bookshelf — `books/local-books.ts` owns the
 // `customTextLong` storage now (M2b), these are kept as thin wrappers so the
 // existing callers (test-logic progress write-back, the modals) don't change.

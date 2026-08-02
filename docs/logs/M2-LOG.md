@@ -112,3 +112,35 @@
   - **这违反 WORKORDER 本来的「页面流」§3/§5** —— Random 页与书籍打字页在工单里一直是两个页面,是实现把它们合并了,不是工单没写。
   - 已在 WORKORDER 新增「Random 模式 与 书籍模式 的边界」一节写死两者职责与数据隔离;`docs/plans/M2.md` 的 M2d 重写为「先拆分、再加胶囊与箭头」。
 - 遗留:pdf.js 的 `cMapUrl` 未配置 → 少数 CID 编码(多为中日韩)PDF 可能抽出乱码而非报错。中文本来就归 M5,届时一并处理。
+
+---
+
+## M2d — 书籍模式与 Random 模式拆分 + 回合胶囊条 + 左右箭头(2026-08-01)
+
+- 实现:
+  - **新建 `ts/books/book-session.ts`** —— 两个模式之间的那道墙。进书时把 Random 自己的 custom 文本**存进 `typeanyRandomCustomStash`**,出书时原样放回;`typeanyActiveBook` 记录当前在读哪本。打字引擎仍然只认 `Config.mode` + `CustomText`(所以一轮书还是得倒进那个槽位),但槽位的进出被这个模块包住了。
+  - **新路由 `/read`** = 书籍打字页。它渲染的仍是 test 页(引擎同一套),只是换了 URL —— 与上游 `/verify` 用的是同一个手法,避免去动 20 处 `getActivePage() === "test"` 判断。`firebase.json` 白名单已补 `read`。
+  - **`BookConfig.tsx`** —— 书里的胶囊条,外形与 Random 那排一致:`punctuation / numbers`(置灰 + `coming soon` 气泡)、`words / time`、档位 `25/50/100/200` 词与 `15/30/60/120` 秒。**改档只换下一轮长度,绝不跳出这本书。**
+  - **左右箭头**:打字区两侧,`←`/`→` 按一整轮移动指针,到头置灰。
+  - `TestConfig` 顶层按 `isBookMode()` 二选一渲染 `BookConfig` / 原来的 `RandomConfig`。
+  - 回合设置**存在书自己身上**(`local-books` 新增 `roundMode / roundWords / roundSeconds`,默认 25 词;migrate 给老书补默认值)。
+  - `navigate()` 里加一条:目标不是 `/read` 就 `endBookSession()` —— 离开书籍页 = 关书 + 还回 Random 的文本。
+  - **`clearLegacyBookLeakage()`**:M2c 期间打开过书的用户,custom 槽位里残留着书的尾巴(指示器只在内存里,刷新即失,所以点 `custom` 会莫名其妙进到上次那本书)。一次性检测并重置,带 localStorage 标记只跑一次。
+- 交互逻辑 / 边界:
+  - 进书顺序是**先 `startBookSession` 再 `navigate("/read")`**。反过来不行:`getActivePage()` 要等页面转场动画结束才翻成 `"test"`,拿它当前置条件会让会话根本起不来(实测踩过)。
+  - 书套书:从一本书直接跳另一本时不覆盖 stash,否则 Random 的文本会被前一本书顶掉。
+- 关键文件:`ts/books/book-session.ts`(新)、`ts/components/pages/test/BookConfig.tsx`(新)、`ts/books/local-books.ts`(回合字段)、`ts/components/pages/test/TestConfig.tsx`、`ts/controllers/route-controller.ts`、`ts/components/pages/BookshelfPage.tsx`、`ts/test/custom-text.ts`(`setData` / `resetToDefault`)、`frontend/firebase.json`。
+- 计划外变更:无(本片本身就是 2026-08-01 因用户反馈重写的计划)。
+- 验证(localhost 实测,逐条对应用户报的问题):
+  - 先给 Random 存一段 `random scratch text of mine`,再建一本 120 词的书。
+  - 书架 `start` → 到 `/read`,顶部是书的胶囊条,正文恰好 25 词(w0–w24),书名与 `shift + enter` 提示在。
+  - 点 `50` → **仍在这本书里**,正文变 w0–w49,书里 `roundWords` 存成 50。(用户问题 ②)
+  - 点右箭头 → w25–w49,左箭头由置灰变可用,书架进度前进一整轮。
+  - 走到 `/test` → 配置条变回 Random 那排,正文是 `random scratch text of mine`,`typeanyActiveBook` 与 stash 都已清空,书的进度 25 完好。(用户问题 ③)
+  - `pnpm lint-fe` 0/0;`build-fe` 绿。
+- 已知问题 / 未完:
+  - 右箭头的 `next block` 气泡贴着屏幕右缘会被裁掉,只是提示文字被切,功能正常。
+  - `punctuation` / `numbers` 只是占位;它们在书里的「跳过」语义要等 M3 的字符三分类。
+  - 书籍页目前没有双进度条 / 双结算 / 章节(M3)。
+  - 移动端书籍页只有 `test settings` 那个入口沿用 Random 的弹窗,还没有书籍版(M3 一并处理)。
+- 下一步:M2 收尾,进 **M3**(章节段落级真指针、双进度条、双结算、符号跳过、热力图记数)。

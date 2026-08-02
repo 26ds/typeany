@@ -1,5 +1,6 @@
 import { ComponentProps, For, JSXElement, Show } from "solid-js";
 
+import { isBookMode } from "../../../books/book-session";
 import { configMetadata } from "../../../config/metadata";
 import { setConfig, setQuoteLengthAll } from "../../../config/setters";
 import { getConfig } from "../../../config/store";
@@ -14,6 +15,7 @@ import { areUnsortedArraysEqual } from "../../../utils/arrays";
 import { cn } from "../../../utils/cn";
 import { Anime, AnimeShow } from "../../common/anime";
 import { Button } from "../../common/Button";
+import { BookConfig } from "./BookConfig";
 
 const variables = cn(
   "[--card-gap:0.25em] [--font-size:0.5em] [--horizontal-padding:0.4em] [--vertical-padding:0.5rem]",
@@ -27,6 +29,16 @@ const cardClass =
 const durationMs = 250;
 
 export function TestConfig(): JSXElement {
+  // a book gets its own bar: same shape, but every control stays in the book
+  // (WORKORDER「Random 模式 与 书籍模式 的边界」)
+  return (
+    <Show when={!isBookMode()} fallback={<BookConfig />}>
+      <RandomConfig />
+    </Show>
+  );
+}
+
+function RandomConfig(): JSXElement {
   return (
     <>
       <div

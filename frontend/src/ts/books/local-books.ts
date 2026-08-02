@@ -15,6 +15,15 @@ import { LocalStorageWithSchema } from "../utils/local-storage-with-schema";
  * read-modify-write of the progress pointer.
  */
 
+/** how long one round of this book is — WORKORDER 回合设置, per book */
+export const ROUND_WORD_OPTIONS = [25, 50, 100, 200] as const;
+export const ROUND_TIME_OPTIONS = [15, 30, 60, 120] as const;
+export const DEFAULT_ROUND = {
+  roundMode: "words" as const,
+  roundWords: 25,
+  roundSeconds: 30,
+};
+
 const StoredBookSchema = z.object({
   text: z.string(),
   /** how many words of `text` are already done */
@@ -22,6 +31,9 @@ const StoredBookSchema = z.object({
   wordCount: z.number().int().nonnegative(),
   createdAt: z.number().nonnegative(),
   lastOpenedAt: z.number().nonnegative(),
+  roundMode: z.enum(["words", "time"]),
+  roundWords: z.number().int().positive(),
+  roundSeconds: z.number().int().positive(),
 });
 type StoredBook = z.infer<typeof StoredBookSchema>;
 
@@ -37,6 +49,9 @@ const LegacyBookSchema = z.object({
   wordCount: z.number().nonnegative().optional(),
   createdAt: z.number().nonnegative().optional(),
   lastOpenedAt: z.number().nonnegative().optional(),
+  roundMode: z.enum(["words", "time"]).optional(),
+  roundWords: z.number().positive().optional(),
+  roundSeconds: z.number().positive().optional(),
 });
 
 const LegacyShortTextsSchema = z.record(z.string(), z.string());
@@ -83,6 +98,13 @@ function migrateShelf(oldData: Record<string, unknown> | unknown[]): Bookshelf {
       wordCount,
       createdAt: parsed.data.createdAt ?? now,
       lastOpenedAt: parsed.data.lastOpenedAt ?? now,
+      roundMode: parsed.data.roundMode ?? DEFAULT_ROUND.roundMode,
+      roundWords: Math.floor(
+        parsed.data.roundWords ?? DEFAULT_ROUND.roundWords,
+      ),
+      roundSeconds: Math.floor(
+        parsed.data.roundSeconds ?? DEFAULT_ROUND.roundSeconds,
+      ),
     };
   }
 
@@ -125,6 +147,7 @@ function importLegacyShortTexts(): void {
           wordCount: splitWords(text).length,
           createdAt: now,
           lastOpenedAt: now,
+          ...DEFAULT_ROUND,
         };
         imported++;
       }
@@ -183,6 +206,9 @@ export function addBook(name: string, text: string | string[]): boolean {
     wordCount: splitWords(joined).length,
     createdAt: shelf[name]?.createdAt ?? now,
     lastOpenedAt: now,
+    roundMode: shelf[name]?.roundMode ?? DEFAULT_ROUND.roundMode,
+    roundWords: shelf[name]?.roundWords ?? DEFAULT_ROUND.roundWords,
+    roundSeconds: shelf[name]?.roundSeconds ?? DEFAULT_ROUND.roundSeconds,
   };
 
   return bookshelfLS.set(shelf);
@@ -215,6 +241,23 @@ export function setProgress(name: string, progress: number): boolean {
 
   book.progress = clampProgress(progress, book.wordCount);
   return bookshelfLS.set(shelf);
+}
+
+export function setRound(
+  name: string,
+  round: Partial<Pick<StoredBook, "roundMode" | "roundWords" | "roundSeconds">>,
+): boolean {
+  const shelf = readShelf();
+  const book = shelf[name];
+  if (book === undefined) return false;
+
+  Object.assign(book, round);
+  return bookshelfLS.set(shelf);
+}
+
+/** how many words this round covers; time rounds are open-ended */
+export function getRoundLength(book: Book): number {
+  return book.roundMode === "words" ? book.roundWords : book.wordCount;
 }
 
 export function resetProgress(name: string): boolean {

@@ -1,6 +1,7 @@
 import { createEffect, createSignal, For, JSXElement, Show } from "solid-js";
 import { z } from "zod";
 
+import { startBookSession } from "../../books/book-session";
 import {
   cleanExtractedText,
   extractText,
@@ -8,7 +9,6 @@ import {
   UPLOAD_ACCEPT,
 } from "../../books/extract-text";
 import * as LocalBooks from "../../books/local-books";
-import { setConfig } from "../../config/setters";
 import { navigate } from "../../controllers/route-controller";
 import { restartTestEvent } from "../../events/test";
 import { getActivePage, setCustomTextIndicator } from "../../states/core";
@@ -17,7 +17,6 @@ import {
   showSuccessNotification,
 } from "../../states/notifications";
 import { showSimpleModal } from "../../states/simple-modal";
-import * as CustomText from "../../test/custom-text";
 import { formatAge } from "../../utils/date-and-time";
 import { download } from "../../utils/misc";
 import { Button } from "../common/Button";
@@ -40,7 +39,7 @@ const nameSchema = z
   .min(1, "Name is required")
   .max(64, "Name must be 64 characters or less");
 
-/** loads the book into the typing page and starts a round at its pointer */
+/** opens the book on the book typing page, at its pointer */
 function openBook(name: string): void {
   const book = LocalBooks.getBook(name);
   if (book === undefined) {
@@ -48,20 +47,12 @@ function openBook(name: string): void {
     return;
   }
 
-  LocalBooks.touchBook(name);
+  // before navigating: /read is the one route navigate() does not close the
+  // session for, and the active page only flips to "test" after the page
+  // transition finishes — too late to be a precondition
+  startBookSession(book);
 
-  const words = LocalBooks.splitWords(book.text);
-  CustomText.setMode("repeat");
-  CustomText.setPipeDelimiter(false);
-  CustomText.setText(words.slice(book.progress));
-  CustomText.setLimitMode("word");
-  CustomText.setLimitValue(words.length - book.progress);
-  setCustomTextIndicator({ name, isLong: true });
-  setConfig("mode", "custom");
-
-  void navigate("/test").then(() => {
-    // navigate() silently no-ops while the app is busy, so only start a round
-    // if we actually landed on the typing page
+  void navigate("/read").then(() => {
     if (getActivePage() === "test") {
       restartTestEvent.dispatch({ isQuickRestart: false });
     }
