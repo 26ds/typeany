@@ -100,9 +100,13 @@ function stripMarkdown(raw: string): string {
 }
 
 async function extractPdf(file: File): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
+  // the legacy build, not the default one: pdf.js 6 ships modern-only code
+  // (Promise.withResolvers, iterator helpers) that throws "undefined is not a
+  // function" on Safari older than 18.4 and other slightly-behind browsers.
+  // The legacy bundle carries the core-js polyfills for exactly those.
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = (
-    await import("pdfjs-dist/build/pdf.worker.mjs?url")
+    await import("pdfjs-dist/legacy/build/pdf.worker.mjs?url")
   ).default;
 
   const buffer = await file.arrayBuffer();
