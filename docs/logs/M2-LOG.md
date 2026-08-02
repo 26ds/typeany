@@ -103,3 +103,12 @@
   - 打书仍是"一次把剩下全部铺出来",**没有每轮字数与左右箭头** —— 那是紧接着的 M2d。
   - 自动化环境限制照旧:浏览器 pane 标签页 hidden 时 rAF 不跑,弹窗进出场动画与 `navigate()` 的 `PageTransition` 标志会卡住(本次一度让 `bookshelf` 按钮看似无效,清掉标志后正常)。真人使用不受影响。
 - 下一步:**M2d** 打书回合胶囊条(默认 25 词)+ 左右箭头切段。
+
+### M2c 补记 —— 用户实测反馈与一处设计错误(2026-08-01)
+
+- **bug:PDF 上传报 `undefined is not a function`**(用户实测,真实课件 PDF)。原因:`pdfjs-dist` 6 的默认构建是 modern-only,用了 `Promise.withResolvers` 与 iterator helpers,Safari < 18.4 / Chrome < 122 直接抛错。改用它自带的 `legacy/build`(内含 core-js polyfill)。**我的测试没抓到是因为用的是自己造的极简单页 PDF,还没走到缺失方法就解析完了** —— 教训:合成样本不能代替真实文件。已修并复验(19 词正常提取,扫描版仍正确报 `scanned-pdf`)。
+- **设计错误:书被接进了 Random 页的 `custom` 槽位**。用户实测到三个症状:① 在书里点顶部 `words`/`time` 胶囊 → 跳出这本书变成随机词;② Random 页点 `custom` → 跳进上次没打完的书;③ 两边互相覆盖。
+  - 根因:M2b/M2c 复用了上游"长 custom text"那套(`Config.mode="custom"` + 同一份 `customTextSettings`),这在只做书架时看不出问题,一旦要在书里放胶囊条就暴露了。
+  - **这违反 WORKORDER 本来的「页面流」§3/§5** —— Random 页与书籍打字页在工单里一直是两个页面,是实现把它们合并了,不是工单没写。
+  - 已在 WORKORDER 新增「Random 模式 与 书籍模式 的边界」一节写死两者职责与数据隔离;`docs/plans/M2.md` 的 M2d 重写为「先拆分、再加胶囊与箭头」。
+- 遗留:pdf.js 的 `cMapUrl` 未配置 → 少数 CID 编码(多为中日韩)PDF 可能抽出乱码而非报错。中文本来就归 M5,届时一并处理。
