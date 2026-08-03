@@ -144,3 +144,37 @@
   - 书籍页目前没有双进度条 / 双结算 / 章节(M3)。
   - 移动端书籍页只有 `test settings` 那个入口沿用 Random 的弹窗,还没有书籍版(M3 一并处理)。
 - 下一步:M2 收尾,进 **M3**(章节段落级真指针、双进度条、双结算、符号跳过、热力图记数)。
+
+---
+
+## ⚠️ 未解决:PDF 上传仍然失败(2026-08-01,阻塞 M2 收尾)
+
+**状态:开着的 bug,下一个会话第一件事。** 用户在自己的浏览器上传真实 PDF(`CIS61_Ortak_S26.pdf`,课件)仍然失败。改用 pdf.js legacy 构建**没有解决**。
+
+### 已经做过的
+
+1. 第一次报错原文(用户提供):
+   `Could not read CIS61_Ortak_S26.pdf: undefined is not a function (near '...e of t...')`
+   —— `undefined is not a function` 是 WebKit/Safari 的措辞;`near '...e of t...'` 指向一个 `for (… of t…)`,像是迭代器 helper(`.map()`/`.filter()` 直接调在迭代器上)缺失。
+2. 据此把 `extract-text.ts` 的 pdf 分支从 `pdfjs-dist` 默认构建换成 `pdfjs-dist/legacy/build/pdf.mjs` + `legacy/build/pdf.worker.mjs?url`(legacy 里打包了 core-js 的 `es.iterator.*`、`Promise.withResolvers` 等 polyfill)。已上线(commit `1780c8e31`)。
+3. 换完后我在 Chromium 里复验:合成 PDF 正常提取 19 词,扫描版仍正确报 `scanned-pdf`。**但用户那边仍失败。**
+
+### 下一个会话开工前必须先问用户拿到的东西
+
+**不要再猜了,先要这三样**(前两次都是因为拿合成样本代替真实文件而误判):
+
+1. **新的报错原文**(整段,截图或复制)—— 换 legacy 之后错误可能已经变了,是同一个还是新的决定了方向完全不同。
+2. **浏览器与版本**(Safari 几点几 / Chrome 几)。
+3. 可能的话,**那个 PDF 本身**(或任意一个能复现的真实 PDF)。放进 `docs/` 之外的临时目录,不要提交进仓库(版权)。
+
+### 待验证的假设(按可能性排序)
+
+1. **worker 加载失败**:`legacy/build/pdf.worker.mjs?url` 在生产构建里被 emit 到 `dist/worker/pdf.worker.*.mjs`。若浏览器因 MIME/CORS/模块 worker 支持拒绝加载,pdf.js 会抛出与主线程无关的错。**排查:上传时看 Network 面板有没有那个 .mjs 请求、状态码是什么。** Safari 对 module worker 的支持较晚(15+),legacy 版本可能仍用 `type: "module"` worker。
+   - 若坐实:改用 `disableWorker: true`(在主线程解析,慢但兼容),或引入 `pdf.worker.min.mjs` 的 classic 构建。
+2. **仍是语法/API 兼容**:legacy 构建虽带 polyfill,但 Vite/rolldown 的 target 可能把它又降级/保留了新语法。**排查:看 `browserslist` 与 `build.target`,确认产物里没有 `??=`、`?.` 之外的新语法。**
+3. **这个 PDF 本身的特性**(加密 / 线性化异常 / 特殊字体)。若是,错误文案应该是我写的 `corrupt-file` 那条而不是裸 `undefined is not a function` —— 所以优先级最低。
+
+### 相关已知遗留
+
+- `cMapUrl` / `standardFontDataUrl` / `wasmUrl` 都没配。前者影响 CID 编码(中日韩)PDF 的文字提取正确性,后两者只影响渲染、与提取无关。中文归 M5,届时一并处理。
+- **教训(已写进记忆)**:自己造的最小样本不能当验收依据。这个 bug 我"验证通过"了两次,用户那边两次都不通。真实文件没到手之前,不要声称 PDF 能用。
