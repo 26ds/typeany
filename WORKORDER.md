@@ -179,8 +179,9 @@ monkeytype 的手感和数据体验 + 导入自己的书(**PDF / EPUB / DOCX / M
 ## 分期
 
 - **M1 ✅ 已完成(2026-07-30)** fork + 大裁剪(quote/zen/皇冠/info/铃铛/广告/排行榜/Sentry)+ 重品牌 + landing 双入口 + 游客模式 → 详见 `docs/plans/M1.md`。**a fork ✅ / 部署管线 ✅ / b 裁剪 + 永久零广告 ✅ / c 品牌 + Ink Aurora + 玻璃 v1 ✅ / d Landing 双入口 ✅**;路由现为 `/`=landing、`/test`=打字页、`/bookshelf`=书架占位
-- **M2 进行中** custom 弹窗裁剪 + saved texts 升级书架 → 详见 `docs/plans/M2.md`。**a 弹窗裁剪 ✅(2026-07-31)/ b 本地书籍数据层 + 书架页 ✅(2026-07-31)/ c 书架操作闭环 + 虚线上传卡 + 本地多格式文本提取 ✅(2026-08-01)/ d 书籍模式与 Random 拆分 + 回合胶囊条 + 左右箭头 ✅(2026-08-01)/ e 收尾 ⬜**
-  - ⚠️ **M2 未收尾:用户上传真实 PDF 仍失败**(pdf.js 换 legacy 构建后依旧)。下一会话先要报错原文 + 浏览器版本 + 样本文件,再动代码 → 详见 `docs/logs/M2-LOG.md` 末尾
+- **M2 已完成** custom 弹窗裁剪 + saved texts 升级书架 → 详见 `docs/plans/M2.md`。**a 弹窗裁剪 ✅(2026-07-31)/ b 本地书籍数据层 + 书架页 ✅(2026-07-31)/ c 书架操作闭环 + 虚线上传卡 + 本地多格式文本提取 ✅(2026-08-01)/ d 书籍模式与 Random 拆分 + 回合胶囊条 + 左右箭头 ✅(2026-08-01)/ e 收尾:PDF 上传修复 ✅(2026-08-03)**
+  - PDF 上传的真因是 **Safari 没有 `ReadableStream[Symbol.asyncIterator]`**,pdf.js 的 `getTextContent()` 内部用 `for await ... of` 读流 → 改为自己 `getReader()` 读。已在用户本机 Safari 26.5 + 真实 PDF 上端到端实测 → 详见 `docs/logs/M2-LOG.md` 的 M2e
+  - 顺延到 M3:右箭头气泡贴屏幕右缘被裁;移动端书籍页仍用 Random 的 `test settings` 弹窗
   - 2026-07-31 两处扩围,均经用户拍板:① c 原定只做 .txt/粘贴 → 用户要求上传卡直接吃 PDF/DOCX/MD,且"一次做完";② 胶囊条与左右箭头原在 M3 → 提前为 d,基于 M2b 已有的词级指针做简版,让打书手感尽早可见
 - **M3** 书籍层(**胶囊条与左右箭头已提前到 M2d**,此处只剩):章节/段落级真指针、双进度条、双结算、章节/页随机、符号跳过;热力图本地记数开始
 - **M4** 解析管道:AI 清洗/OCR + 章节识别 + 分页对齐 + 仿版式选页弹窗(选文本→预览→开始)。**本地文本提取(txt/md/docx/epub/文本型 pdf)已提前到 M2c**

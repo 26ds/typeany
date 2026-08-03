@@ -147,7 +147,11 @@
 
 ---
 
-## ⚠️ 未解决:PDF 上传仍然失败(2026-08-01,阻塞 M2 收尾)
+## ✅ 已解决:PDF 上传失败(2026-08-01 立案 → 2026-08-03 定位并修复)
+
+**结论:三条假设全部猜错,真因是 Safari 没有 `ReadableStream[Symbol.asyncIterator]`。**
+修复与实测见下方 **M2e**。以下调查记录原样保留,因为它记的是「我怎么连猜两轮都错」——
+教训是那三条假设都是从一句报错文本推出来的,谁都没去真机复现。
 
 **状态:开着的 bug,下一个会话第一件事。** 用户在自己的浏览器上传真实 PDF(`CIS61_Ortak_S26.pdf`,课件)仍然失败。改用 pdf.js legacy 构建**没有解决**。
 
@@ -178,3 +182,45 @@
 
 - `cMapUrl` / `standardFontDataUrl` / `wasmUrl` 都没配。前者影响 CID 编码(中日韩)PDF 的文字提取正确性,后两者只影响渲染、与提取无关。中文归 M5,届时一并处理。
 - **教训(已写进记忆)**:自己造的最小样本不能当验收依据。这个 bug 我"验证通过"了两次,用户那边两次都不通。真实文件没到手之前,不要声称 PDF 能用。
+
+---
+
+## M2e — PDF 上传修复:Safari 的 ReadableStream 异步迭代缺口(2026-08-03)
+
+- 实现:`extract-text.ts` 不再调用 pdf.js 的 `page.getTextContent()`,改为自己
+  `page.streamTextContent().getReader()` 逐块读同一条流;并给翻页循环补了独立的
+  `try/catch`,失败时报「第几页读不出来」而不是掉进上层那句通用文案。
+- 真因(实测,非推断):
+  - pdf.js 6 的 `getTextContent()` 内部是 `for await (const value of readableStream)`
+    (`pdfjs-dist/legacy/build/pdf.mjs:22166`)。
+  - **Safari 至今没有实现 `ReadableStream[Symbol.asyncIterator]`**(Safari 26.5 实测
+    `ReadableStream.prototype.values === undefined`)。`for await` 于是去取一个
+    `undefined` 当迭代器来调用,WebKit 抛
+    `TypeError: undefined is not a function (near '...value of readableStream...')`。
+    压缩后变量名变成 `e`/`t`,就是用户看到的 `near '...e of t...'`。
+  - 它落在我 `try` 之外,所以显示成 `Could not read <文件名>: …`,把出处彻底盖掉了。
+- 为什么前两轮都没找到:
+  - `for await` 是**语法**,不是能被 `compat/compat` 那条 lint 规则查出来的 API 调用,
+    而且它在依赖里,不在我们代码里。
+  - `ReadableStream` 是 Web API,**core-js 不管**,所以换 legacy 构建注定无效。
+  - Chromium 与 Node 都有这个异步迭代器,本地怎么试都是绿的。
+- 定位手法(下次遇到"只有用户的浏览器坏"照抄):
+  写一个探针 HTML + 一个本地 node 静态服务器,页面把结果 `sendBeacon` 回
+  `/report`,再 `open -a Safari http://localhost:…`。**不需要开 Safari 的远程自动化,
+  也不需要用户复述控制台**,拿到的是真机 JS 环境。脚本留在会话临时目录,没进仓库。
+- 实测(全部在用户本机 Safari 26.5 + 用户真实 PDF `CIS61_Ortak_S26.pdf` 上):
+  - 探针一(裸 pdf.js):`ReadableStream[Symbol.asyncIterator]: undefined`;
+    文档能打开、`numPages=5`、**worker 正常**(顺带排除了假设 1);
+    `getTextContent()` 复现原报错;`streamTextContent()+getReader()` 成功拿到 118 项。
+  - 探针二(端到端,同源 iframe 载入 `pnpm build-fe` 的生产产物 `/bookshelf`,
+    把真 PDF 注进 App 自己的 `input[type=file]` 并派发 `change`):
+    书成功入架 —— `chars=8920 words=1379 progress=0 round=words/25`,
+    正文开头是课件真实内容,页面显示 `1 book on this device`。
+  - `tsc --noEmit` 通过;`oxlint --type-aware` 0 问题;`build-fe` 绿。
+- 计划外变更:`streamTextContent()` 在 `pdfjs-dist` 根 typings 里没导出 `TextContent`,
+  用 `Awaited<ReturnType<PDFPageProxy["getTextContent"]>>` 取形状,避免深路径 import。
+- 已知问题 / 未完:
+  - `cMapUrl` / `standardFontDataUrl` 仍未配 —— 中日韩(CID 编码)PDF 的取字仍可能不对,
+    归 M5 中文支持时一并处理。
+  - 右箭头 `next block` 气泡贴右屏边被裁;移动端书籍页仍复用 Random 的 `test settings` 弹窗。
+- 下一步:M2 收尾完成,进 **M3**。

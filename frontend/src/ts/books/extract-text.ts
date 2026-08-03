@@ -10,6 +10,11 @@
  * anything never downloads pdf.js or mammoth.
  */
 
+import type { PDFPageProxy } from "pdfjs-dist";
+
+/** pdfjs-dist only re-exports `PDFPageProxy`, so take the shape off the method */
+type TextContent = Awaited<ReturnType<PDFPageProxy["getTextContent"]>>;
+
 export type ExtractFailureKind =
   | "unsupported-format"
   | "empty-file"
@@ -99,11 +104,44 @@ function stripMarkdown(raw: string): string {
     .replace(/(\*\*|__|\*|_|~~)/g, "");
 }
 
+/**
+ * Drains a page's text stream by hand instead of calling pdf.js's own
+ * `page.getTextContent()`.
+ *
+ * That method is `for await (const value of readableStream)`, and Safari still
+ * ships no `ReadableStream[Symbol.asyncIterator]` — verified on Safari 26.5,
+ * where `ReadableStream.prototype.values` is `undefined` and every PDF upload
+ * died with "undefined is not a function (near '...value of readableStream...')"
+ * even though the worker had loaded and the document had opened fine.
+ * `getReader()` is the same stream, minus the syntax Safari lacks.
+ */
+async function readPageText(page: PDFPageProxy): Promise<string> {
+  const reader = (
+    page.streamTextContent() as ReadableStream<TextContent>
+  ).getReader();
+
+  const parts: string[] = [];
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      for (const item of value.items) {
+        if ("str" in item) parts.push(item.str);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return parts.join(" ");
+}
+
 async function extractPdf(file: File): Promise<string> {
   // the legacy build, not the default one: pdf.js 6 ships modern-only code
   // (Promise.withResolvers, iterator helpers) that throws "undefined is not a
-  // function" on Safari older than 18.4 and other slightly-behind browsers.
-  // The legacy bundle carries the core-js polyfills for exactly those.
+  // function" on browsers a little behind. The legacy bundle carries the
+  // core-js polyfills for those — but not for the stream gap above, which is a
+  // Web API and so out of core-js's reach.
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = (
     await import("pdfjs-dist/legacy/build/pdf.worker.mjs?url")
@@ -124,14 +162,20 @@ async function extractPdf(file: File): Promise<string> {
   }
 
   const pages: string[] = [];
-  for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
-    const page = await doc.getPage(pageNumber);
-    const content = await page.getTextContent();
-    pages.push(
-      content.items.map((item) => ("str" in item ? item.str : "")).join(" "),
+  try {
+    for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+      pages.push(await readPageText(await doc.getPage(pageNumber)));
+    }
+  } catch (e) {
+    // naming the page beats the caller's generic "could not read <file>",
+    // which is what hid the Safari stream bug for two rounds
+    throw new ExtractTextError(
+      "corrupt-file",
+      `Could not read page ${pages.length + 1} of this PDF (${(e as Error).message}).`,
     );
+  } finally {
+    await loadingTask.destroy();
   }
-  await loadingTask.destroy();
 
   const text = pages.join(" ");
   if (cleanExtractedText(text) === "") {
