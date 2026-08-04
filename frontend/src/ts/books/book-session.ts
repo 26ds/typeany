@@ -64,11 +64,14 @@ function rememberActiveBook(name: string | null): void {
 }
 
 /**
- * Pours one round of the book into the custom-text slot the engine reads.
- * A words round takes the next N words; a time round lays out the rest of the
- * book and lets the clock decide where it stops.
+ * Pours the round starting at the book's cursor into the custom-text slot the
+ * engine reads. A words round takes the next N words; a time round lays out the
+ * rest of the book and lets the clock decide where it stops.
+ *
+ * Split out of `applyRound` because a test that is *finishing* has to line up
+ * the next round's text without also re-running `setConfig` mid-finish.
  */
-export function applyRound(book: LocalBooks.Book): void {
+function pourRoundText(book: LocalBooks.Book): void {
   const words = LocalBooks.splitWords(book.text);
   const remaining = words.slice(book.progress);
 
@@ -85,7 +88,11 @@ export function applyRound(book: LocalBooks.Book): void {
     CustomText.setLimitMode("word");
     CustomText.setLimitValue(round.length);
   }
+}
 
+/** `pourRoundText` plus the "we are in a book now" state */
+export function applyRound(book: LocalBooks.Book): void {
+  pourRoundText(book);
   setCustomTextIndicator({ name: book.name, isLong: true });
   setConfig("mode", "custom");
 }
@@ -124,7 +131,20 @@ export function endBookSession(): void {
   }
 }
 
-/** moves the pointer by whole rounds; returns the book after the move */
+/** parks the cursor somewhere and lays out the round that starts there */
+function moveCursor(name: string, cursor: number): LocalBooks.Book | undefined {
+  LocalBooks.setCursor(name, cursor);
+
+  const moved = LocalBooks.getBook(name);
+  if (moved !== undefined) applyRound(moved);
+  return moved;
+}
+
+/**
+ * Pages by whole rounds. **Navigation only** — it moves the cursor and nothing
+ * else. It used to write the progress field, which is why paging back used to
+ * eat the reader's percentage and paging back to the start wiped the book.
+ */
 export function stepRound(direction: -1 | 1): LocalBooks.Book | undefined {
   const book = getActiveBook();
   if (book === undefined) return undefined;
@@ -133,11 +153,90 @@ export function stepRound(direction: -1 | 1): LocalBooks.Book | undefined {
     book.roundMode === "words"
       ? book.roundWords
       : LocalBooks.DEFAULT_ROUND.roundWords;
-  LocalBooks.setProgress(book.name, book.progress + direction * step);
+  let target = book.progress + direction * step;
 
-  const moved = LocalBooks.getBook(book.name);
-  if (moved !== undefined) applyRound(moved);
-  return moved;
+  // coming forward from behind the frontier, stop *on* it rather than
+  // overshooting into unread text and leaving a fresh gap behind
+  const frontier = LocalBooks.getFrontier(book);
+  if (direction === 1 && book.progress < frontier && target > frontier) {
+    target = frontier;
+  }
+
+  return moveCursor(book.name, target);
+}
+
+/**
+ * "Back to my progress" — lands on the round that reached the frontier, so it
+ * reads all in white and one press of → is new text.
+ */
+export function jumpToLastFinished(): LocalBooks.Book | undefined {
+  const book = getActiveBook();
+  if (book === undefined) return undefined;
+  return moveCursor(book.name, LocalBooks.getLastFinishedStart(book));
+}
+
+/** a gap pill was clicked — go type that stretch */
+export function jumpToGap(gap: LocalBooks.Range): LocalBooks.Book | undefined {
+  const book = getActiveBook();
+  if (book === undefined) return undefined;
+  return moveCursor(book.name, gap[0]);
+}
+
+/** what settling a round did to the book, so the caller can say so */
+export type RoundOutcome =
+  | { kind: "advanced"; doneWords: number; totalWords: number }
+  | { kind: "gaps-left"; gapCount: number }
+  | { kind: "book-finished" };
+
+/**
+ * Records a settled round against the book and lines up the next one.
+ *
+ * Only ever *adds* to what has been read — see WORKORDER「打完一轮 ≠ 打完整本」.
+ * Upstream loaded a whole long text as one test, so reaching the end meant the
+ * book was done and the pointer went back to 0; on a book read one round at a
+ * time that threw away every round already read (reproduced: 2 → 0).
+ */
+export function settleRound(
+  name: string,
+  completedWords: number,
+): RoundOutcome | undefined {
+  const before = LocalBooks.getBook(name);
+  if (before === undefined) return undefined;
+
+  LocalBooks.settleRound(
+    name,
+    before.progress,
+    before.progress + completedWords,
+  );
+
+  const settled = LocalBooks.getBook(name);
+  if (settled === undefined) return undefined;
+
+  let outcome: RoundOutcome;
+  if (settled.progress >= settled.wordCount) {
+    // ran off the end of the book — but the end is not the same as having read
+    // all of it, so send them to what they skipped rather than back to word 1
+    const gaps = LocalBooks.getGaps(settled);
+    const firstGap = gaps[0];
+
+    if (firstGap === undefined) {
+      LocalBooks.setCursor(name, 0);
+      outcome = { kind: "book-finished" };
+    } else {
+      LocalBooks.setCursor(name, firstGap[0]);
+      outcome = { kind: "gaps-left", gapCount: gaps.length };
+    }
+  } else {
+    outcome = {
+      kind: "advanced",
+      doneWords: LocalBooks.getDoneWordCount(settled),
+      totalWords: settled.wordCount,
+    };
+  }
+
+  const next = LocalBooks.getBook(name);
+  if (next !== undefined) pourRoundText(next);
+  return outcome;
 }
 
 /**

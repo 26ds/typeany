@@ -64,7 +64,9 @@ function BookCard(props: {
   onChanged: () => void;
 }): JSXElement {
   const percentage = (): number => LocalBooks.getProgressPercentage(props.book);
-  const isStarted = (): boolean => props.book.progress > 0;
+  /** words settled, not cursor position — paging around must not move this */
+  const doneWords = (): number => LocalBooks.getDoneWordCount(props.book);
+  const isStarted = (): boolean => doneWords() > 0 || props.book.progress > 0;
 
   const handleReset = (): void => {
     showSimpleModal({
@@ -154,7 +156,7 @@ function BookCard(props: {
         <div class="flex justify-between text-em-xs text-sub">
           <span>
             <Show when={isStarted()} fallback="Not started">
-              {props.book.progress.toLocaleString()} /{" "}
+              {doneWords().toLocaleString()} /{" "}
               {props.book.wordCount.toLocaleString()} words
             </Show>
           </span>

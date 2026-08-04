@@ -190,6 +190,7 @@ export function getCustomTextLongProgress(name: string): number {
   return book.progress;
 }
 
+/** moves the reading cursor only — what has been read lives in `book.done` */
 export function setCustomTextLongProgress(
   name: string,
   progress: number,
@@ -198,7 +199,16 @@ export function setCustomTextLongProgress(
     throw new Error("Custom text not found");
   }
 
-  LocalBooks.setProgress(name, progress);
+  LocalBooks.setCursor(name, progress);
+}
+
+/** clears the cursor *and* everything settled — the only backwards move */
+export function resetCustomTextLongProgress(name: string): void {
+  if (LocalBooks.getBook(name) === undefined) {
+    throw new Error("Custom text not found");
+  }
+
+  LocalBooks.resetProgress(name);
 }
 
 function getLocalStorage(): CustomTextObject {

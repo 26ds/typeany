@@ -9,6 +9,7 @@ import {
   showErrorNotification,
   showSuccessNotification,
 } from "../states/notifications";
+import * as BookSession from "../books/book-session";
 import * as CustomText from "./custom-text";
 import * as PractiseWords from "./practise-words";
 import * as Funbox from "./funbox/funbox";
@@ -1019,29 +1020,30 @@ export async function finish(difficultyFailed = false): Promise<void> {
       }
     }
 
-    const wholeBook = CustomText.getCustomText(customTextName, true);
-    const newProgress =
-      CustomText.getCustomTextLongProgress(customTextName) + completedWords;
-    const finishedBook = newProgress >= wholeBook.length;
+    const outcome = BookSession.settleRound(customTextName, completedWords);
 
-    CustomText.setCustomTextLongProgress(
-      customTextName,
-      finishedBook ? 0 : newProgress,
-    );
-    CustomText.setText(finishedBook ? wholeBook : wholeBook.slice(newProgress));
-
-    if (finishedBook) {
-      showSuccessNotification(
-        `Finished "${customTextName}" — back to the beginning`,
-        { durationMs: 5000, important: true },
-      );
-    } else if (getBailedOut()) {
-      // only worth a toast when they stopped early; every finished round
-      // saving its progress is the norm, not news
-      showSuccessNotification(
-        `Progress saved — ${newProgress} of ${wholeBook.length} words`,
-        { durationMs: 5000, important: true },
-      );
+    if (outcome !== undefined) {
+      if (outcome.kind === "book-finished") {
+        showSuccessNotification(
+          `Finished "${customTextName}" — back to the beginning`,
+          { durationMs: 5000, important: true },
+        );
+      } else if (outcome.kind === "gaps-left") {
+        // the end of the book is not the same as having read all of it
+        showSuccessNotification(
+          `End of "${customTextName}" — ${outcome.gapCount} unfinished ${
+            outcome.gapCount === 1 ? "part" : "parts"
+          } left. Starting on the first one.`,
+          { durationMs: 6000, important: true },
+        );
+      } else if (getBailedOut()) {
+        // only worth a toast when they stopped early; every finished round
+        // saving its progress is the norm, not news
+        showSuccessNotification(
+          `Progress saved — ${outcome.doneWords} of ${outcome.totalWords} words`,
+          { durationMs: 5000, important: true },
+        );
+      }
     }
   }
 

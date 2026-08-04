@@ -74,7 +74,8 @@ export function SavedTextsModal(props: {
       text: `Are you sure you want to reset your progress for custom text ${name}?`,
       buttonText: "reset",
       execFn: async () => {
-        CustomText.setCustomTextLongProgress(name, 0);
+        // has to clear what was settled too, not just the cursor
+        CustomText.resetCustomTextLongProgress(name);
         const text = CustomText.getCustomText(name, true);
         CustomText.setText(text);
         refresh();
