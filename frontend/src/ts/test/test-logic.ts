@@ -986,50 +986,62 @@ export async function finish(difficultyFailed = false): Promise<void> {
   const customTextName = getCustomTextIndicator()?.name ?? "";
   const isLong = getCustomTextIndicator()?.isLong === true;
   if (Config.mode === "custom" && customTextName !== "" && isLong) {
-    // Let's update the custom text progress
-    if (
-      getBailedOut() ||
-      getInputHistory(eventLog).length < TestWords.words.length
-    ) {
-      // They bailed out
-
+    // Advance the book's pointer by whatever was typed.
+    //
+    // Upstream loaded a whole long text as one test, so reaching the end meant
+    // the book was finished and the pointer went back to 0. TypeAny reads a
+    // book one round at a time (books/book-session), so a completed test is
+    // normally just a completed round — resetting there threw away every
+    // round already read. Only running out of book finishes the book.
+    let completedWords: number;
+    if (!getBailedOut() && CustomText.getLimitMode() === "word") {
+      // A word-limited round can only end here by running out of words, so
+      // every word in it was typed. Counting the input history instead is what
+      // made the pointer stop one word short: the word that ends the test is
+      // still the live input when finish() runs, and never gets committed.
+      completedWords = TestWords.words.length;
+    } else {
+      // stopped early (bail out) or by the clock (a time round) — only the
+      // words actually finished count
       const history = getInputHistory(eventLog);
-      let historyLength = history?.length;
-      const wordIndex = historyLength - 1;
-
-      const lastWordInputLength = history[wordIndex]?.length ?? 0;
+      completedWords = history.length;
+      const lastIndex = completedWords - 1;
 
       // compare against display.length (not textWithCommit.length): the input
       // history holds the typed letters, not the committing space separator, so
       // a space word is "complete" at text.length. display includes a newline
       // commit, which is a required typed char.
       if (
-        lastWordInputLength <
-        (TestWords.words.get(wordIndex)?.display.length ?? 0)
+        (history[lastIndex]?.length ?? 0) <
+        (TestWords.words.get(lastIndex)?.display.length ?? 0)
       ) {
-        historyLength--;
+        completedWords--;
       }
+    }
 
-      const newProgress =
-        CustomText.getCustomTextLongProgress(customTextName) + historyLength;
-      CustomText.setCustomTextLongProgress(customTextName, newProgress);
-      showSuccessNotification("Long custom text progress saved", {
-        durationMs: 5000,
-        important: true,
-      });
+    const wholeBook = CustomText.getCustomText(customTextName, true);
+    const newProgress =
+      CustomText.getCustomTextLongProgress(customTextName) + completedWords;
+    const finishedBook = newProgress >= wholeBook.length;
 
-      let newText = CustomText.getCustomText(customTextName, true);
-      newText = newText.slice(newProgress);
-      CustomText.setText(newText);
-    } else {
-      // They finished the test
-      CustomText.setCustomTextLongProgress(customTextName, 0);
-      const text = CustomText.getCustomText(customTextName, true);
-      CustomText.setText(text);
-      showSuccessNotification("Long custom text completed", {
-        durationMs: 5000,
-        important: true,
-      });
+    CustomText.setCustomTextLongProgress(
+      customTextName,
+      finishedBook ? 0 : newProgress,
+    );
+    CustomText.setText(finishedBook ? wholeBook : wholeBook.slice(newProgress));
+
+    if (finishedBook) {
+      showSuccessNotification(
+        `Finished "${customTextName}" — back to the beginning`,
+        { durationMs: 5000, important: true },
+      );
+    } else if (getBailedOut()) {
+      // only worth a toast when they stopped early; every finished round
+      // saving its progress is the norm, not news
+      showSuccessNotification(
+        `Progress saved — ${newProgress} of ${wholeBook.length} words`,
+        { durationMs: 5000, important: true },
+      );
     }
   }
 

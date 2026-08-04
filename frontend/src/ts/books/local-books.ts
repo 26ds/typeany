@@ -1,4 +1,5 @@
 import { tryCatchSync } from "@monkeytype/util/trycatch";
+import { createSignal } from "solid-js";
 import { z } from "zod";
 
 import { LocalStorageWithSchema } from "../utils/local-storage-with-schema";
@@ -160,6 +161,23 @@ function importLegacyShortTexts(): void {
   window.localStorage.setItem(SHORT_TEXTS_IMPORTED_KEY, "1");
 }
 
+/**
+ * Bumped after every successful write. The shelf lives in localStorage, which
+ * Solid cannot see changing — so anything that reads a book inside a reactive
+ * scope has to subscribe to this too. Without it the book config bar only ever
+ * repainted by accident, when some unrelated signal happened to force it: the
+ * round-length pills looked dead, and switching to `time` left the seconds
+ * options hidden behind the stale word options.
+ */
+const [shelfVersion, bumpShelfVersion] = createSignal(0);
+export { shelfVersion };
+
+function save(shelf: Bookshelf): boolean {
+  const saved = bookshelfLS.set(shelf);
+  if (saved) bumpShelfVersion((version) => version + 1);
+  return saved;
+}
+
 let legacyImportChecked = false;
 
 function readShelf(): Bookshelf {
@@ -211,7 +229,7 @@ export function addBook(name: string, text: string | string[]): boolean {
     roundSeconds: shelf[name]?.roundSeconds ?? DEFAULT_ROUND.roundSeconds,
   };
 
-  return bookshelfLS.set(shelf);
+  return save(shelf);
 }
 
 export function deleteBook(name: string): boolean {
@@ -220,7 +238,7 @@ export function deleteBook(name: string): boolean {
 
   // oxlint-disable-next-line no-dynamic-delete
   delete shelf[name];
-  return bookshelfLS.set(shelf);
+  return save(shelf);
 }
 
 export function renameBook(oldName: string, newName: string): boolean {
@@ -231,7 +249,7 @@ export function renameBook(oldName: string, newName: string): boolean {
   // oxlint-disable-next-line no-dynamic-delete
   delete shelf[oldName];
   shelf[newName] = book;
-  return bookshelfLS.set(shelf);
+  return save(shelf);
 }
 
 export function setProgress(name: string, progress: number): boolean {
@@ -240,7 +258,7 @@ export function setProgress(name: string, progress: number): boolean {
   if (book === undefined) return false;
 
   book.progress = clampProgress(progress, book.wordCount);
-  return bookshelfLS.set(shelf);
+  return save(shelf);
 }
 
 export function setRound(
@@ -252,7 +270,7 @@ export function setRound(
   if (book === undefined) return false;
 
   Object.assign(book, round);
-  return bookshelfLS.set(shelf);
+  return save(shelf);
 }
 
 /** how many words this round covers; time rounds are open-ended */
@@ -271,7 +289,7 @@ export function touchBook(name: string): boolean {
   if (book === undefined) return false;
 
   book.lastOpenedAt = Date.now();
-  return bookshelfLS.set(shelf);
+  return save(shelf);
 }
 
 export function getProgressPercentage(book: Book): number {

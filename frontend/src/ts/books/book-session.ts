@@ -43,7 +43,13 @@ export function isBookMode(): boolean {
   return activeBookName() !== null;
 }
 
+/**
+ * Reactive: re-runs both when the open book changes and when *any* write lands
+ * on the shelf, so the config bar follows the round length and the arrows
+ * follow the progress the finished test just wrote.
+ */
 export function getActiveBook(): LocalBooks.Book | undefined {
+  LocalBooks.shelfVersion();
   const name = activeBookName();
   return name === null ? undefined : LocalBooks.getBook(name);
 }

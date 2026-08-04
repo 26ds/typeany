@@ -355,6 +355,13 @@ function AddBookCard(props: { onAdded: () => void }): JSXElement {
         <div class="text-em-xs text-sub">
           Drop a file here, or pick one — PDF, EPUB, DOCX, MD, TXT
         </div>
+        {/* WORKORDER 上传格式: say plainly what costs nothing, so nobody has to
+            guess whether uploading a book will bill them */}
+        <div class="max-w-[22rem] text-em-xs text-sub-alt">
+          Free, and read on this device — the file never leaves your browser.
+          Scanned PDFs (pages that are pictures of text) need the AI parser,
+          which is not built yet.
+        </div>
         <div class="flex flex-wrap justify-center gap-2 pt-1">
           <Button
             fa={{ icon: "fa-file-upload" }}

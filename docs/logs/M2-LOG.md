@@ -224,3 +224,63 @@
     归 M5 中文支持时一并处理。
   - 右箭头 `next block` 气泡贴右屏边被裁;移动端书籍页仍复用 Random 的 `test settings` 弹窗。
 - 下一步:M2 收尾完成,进 **M3**。
+
+---
+
+## M2f — 书籍页两个线上 bug:胶囊条不刷新 + 打完一轮进度归零(2026-08-03)
+
+用户报「切词数/切时间点了没反应」。实测发现的是两个独立的 bug,第二个比第一个严重得多。
+
+### bug 1:回合胶囊条点了不刷新(用户报的现象)
+
+- 现象(Safari 26.5 实测):点 `50` → 存储里 `roundWords` 确实变成 50、正文也确实变成 50 词,
+  但**高亮不动**;点 `time` → `roundMode` 变了,可那排数字**仍然是 25/50/100/200**,
+  秒数档 15/30/60/120 根本没出现 → 于是「点了时间也没反应」,因为屏幕上压根没有 60 可点。
+- 原因:`getActiveBook()` 直接读 localStorage,不是信号。Solid 看不见 localStorage 变化,
+  所以 `<Show when={book()?.roundMode === "words"}>` 和 `active={...}` 都不会重算。
+  **我在 Chromium 里之所以看着是好的,是蹭了旁边 `getFocus()` 之类信号变化时的顺带重算 —— 巧合,不是设计。**
+- 修:`local-books.ts` 里所有写操作统一走 `save()`,写成功后 bump 一个 `shelfVersion` 信号;
+  `getActiveBook()` 先读一下 `shelfVersion()` 再取书。数据仍只有 localStorage 一份,信号只负责"通知"。
+  顺带把打完一轮后进度变化也带上了 —— 左右箭头的置灰状态现在也会自己更新。
+- 实测(Safari 26.5,同源 iframe 载入生产产物):
+  `点 time → 秒数档 [15,30,60,120] 出现` / `点 60 → roundSeconds=60` / `回 words 点 50 → roundWords=50`。
+
+### bug 2:打完一整轮 → 整本进度归零(用户没报,我顺着 bug 1 读代码翻出来的)
+
+- **实测复现**:一本 8 词的书,一轮 2 词,起点 progress=2,正确接上 `[cc,dd]`,打完两个词后
+  **progress 变成 0**,不是 4。用户每打完一轮就丢掉全部进度。
+- 原因:`test-logic.ts` 的 long-custom-text 收尾是上游逻辑 —— 上游把整本书当**一场**测试,
+  跑到底 = 整本读完 = `setCustomTextLongProgress(name, 0)`。我们把书切成一轮 25 词之后,
+  "跑到底"变成了"打完一轮",于是每轮都触发归零。**这是 M2d 引入分轮制时漏掉的连带影响。**
+- 修:统一按"这一轮实际打完多少词"推进指针,只有 `newProgress >= wordCount` 才算整本读完(才归零)。
+  - 字数轮且没有 bail out → 只可能是把词打完才结束的,所以推进 `TestWords.words.length`(整轮)。
+    不能数 input history:**结束这场测试的那个词还停在当前输入里,永远不会被提交进 history**,
+    照 history 数会少一个词(实测 2→3 而不是 2→4)。
+  - bail out / 时间轮到点 → 仍按 history 数已完成的词(保留上游那段"最后一个词没打完就不算"的判断)。
+  - 提示语也换了:每轮都弹「Long custom text progress saved」太吵,现在只有中途 bail out 才提示
+    `Progress saved — X of Y words`;整本读完提示 `Finished "<书名>" — back to the beginning`。
+- 关键文件:`test/test-logic.ts`、`books/local-books.ts`、`books/book-session.ts`。
+
+### 上传卡文案(用户问「这是免费识别文字的吗 到底什么格式需要 aiapi」)
+
+- 虚线卡加一行:本机解析、免费、文件不上传;扫描版 PDF(整页是图)要 AI、现在还没做。
+- 对应 WORKORDER「已定决策」新增一行,M4 接 AI 管道时这段文案要同步改。
+
+### 验证与诚实说明
+
+- `tsc --noEmit` 通过;`oxlint --type-aware` 0 问题;`build-fe` 绿。
+- bug 1 与 bug 2 的**归零行为**都在用户本机 Safari 26.5 + 生产产物上实测过(见上)。
+- **没能自动化验证的一点**:修完之后"打完一轮正好推进整轮词数"这个精确值。
+  隐藏标签页里真实按键进不了打字引擎,合成 `InputEvent` 又无法让最后一个词自然结束测试;
+  多开探针标签页还会共用同一 origin 的 localStorage 互相干扰。**这一项留给用户在真实使用中确认**
+  (打完一轮回书架看进度是不是 +25),不当成已验证。
+- 探针脚本(同源 iframe 驱动真实上传框/按钮 + `sendBeacon` 回报)留在会话临时目录,没进仓库。
+
+### 已知问题 / 未完
+
+- **续打时灰显上一个词**(用户 2026-08-03 提的需求)已写进 WORKORDER「续打上下文」,**本片未实现**,
+  作为 M3 第一片。已确认技术上可行:`#words` 的子元素本来就混着非 `.word` 元素,行内布局按 class
+  判断而非固定下标。
+- 右箭头 `next block` 气泡贴右屏边被裁;移动端书籍页仍复用 Random 的 `test settings` 弹窗。
+
+- 下一步:**M3**,第一片做「续打上下文灰显」。
