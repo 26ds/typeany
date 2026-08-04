@@ -10,6 +10,8 @@ import {
   showSuccessNotification,
 } from "../states/notifications";
 import * as BookSession from "../books/book-session";
+import { activeBookName } from "../books/book-session";
+import { showBookGapsModal } from "../states/book-gaps";
 import * as CustomText from "./custom-text";
 import * as PractiseWords from "./practise-words";
 import * as Funbox from "./funbox/funbox";
@@ -1274,6 +1276,16 @@ qs(".pageTest")?.onChild("click", "#testInitFailed button.restart", () => {
 
 qs(".pageTest")?.onChild("click", "#restartTestButton", () => {
   if (isResultCalculating()) return;
+
+  // Too many stretches started and abandoned to keep making more: show the
+  // backlog instead, with a way through it (WORKORDER 进度模型 v2, user
+  // decision 2026-08-04). The dialog carries its own "restart anyway".
+  const openBookName = activeBookName();
+  if (openBookName !== null && BookSession.hasTooManyGaps()) {
+    showBookGapsModal(openBookName);
+    return;
+  }
+
   if (
     isTestActive() &&
     Config.repeatQuotes === "typing" &&

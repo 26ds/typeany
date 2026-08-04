@@ -3,6 +3,7 @@ import { For, JSXElement, Show } from "solid-js";
 import {
   applyRound,
   getActiveBook,
+  jumpToLastFinished,
   stepRound,
 } from "../../../books/book-session";
 import * as LocalBooks from "../../../books/local-books";
@@ -72,6 +73,20 @@ export function BookConfig(): JSXElement {
     restart();
   };
 
+  /**
+   * Shown whenever the reader is parked somewhere other than the round they
+   * last finished — however they got there, a gap pill or the arrows
+   * (WORKORDER 进度模型 v2「回到进度」).
+   */
+  const isAwayFromProgress = (): boolean => {
+    const current = book();
+    if (current === undefined) return false;
+    return (
+      LocalBooks.getFrontier(current) > 0 &&
+      current.progress !== LocalBooks.getLastFinishedStart(current)
+    );
+  };
+
   const atStart = (): boolean => (book()?.progress ?? 0) <= 0;
   const atEnd = (): boolean => {
     const current = book();
@@ -83,7 +98,9 @@ export function BookConfig(): JSXElement {
       <div
         class={cn(
           variables,
-          "group relative mb-8 hidden w-max grid-cols-[auto_auto_auto] items-center justify-center gap-(--card-gap) place-self-center [font-size:var(--font-size)] md:grid",
+          // grid-flow-col rather than a fixed column count: the "back to my
+          // progress" card comes and goes
+          "group relative mb-8 hidden w-max grid-flow-col items-center justify-center gap-(--card-gap) place-self-center [font-size:var(--font-size)] md:grid",
           "mx-auto transition-opacity duration-125",
           getFocus() || getResultVisible()
             ? "pointer-events-none opacity-0"
@@ -152,6 +169,22 @@ export function BookConfig(): JSXElement {
             </For>
           </Show>
         </div>
+
+        {/* one press back to where the reading actually stopped — the round
+            that reached the frontier, all in white, one → from new text */}
+        <Show when={isAwayFromProgress()}>
+          <div class={cardClass}>
+            <BCButton
+              text="back to my progress"
+              fa={{ icon: "fa-forward" }}
+              balloon="jump to the last round you finished"
+              onClick={() => {
+                jumpToLastFinished();
+                restart();
+              }}
+            />
+          </div>
+        </Show>
       </div>
 
       {/* prev / next block — WORKORDER 书籍打字页「左右两侧箭头」 */}

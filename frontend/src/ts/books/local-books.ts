@@ -16,6 +16,13 @@ import { LocalStorageWithSchema } from "../utils/local-storage-with-schema";
  * read-modify-write of the progress pointer.
  */
 
+/**
+ * How many gap pills a book card shows before it stops listing them. Past this
+ * many unfinished stretches, the refresh button on the typing page opens the
+ * list instead of starting yet another round (user decision 2026-08-04).
+ */
+export const MAX_GAP_PILLS = 6;
+
 /** how long one round of this book is — WORKORDER 回合设置, per book */
 export const ROUND_WORD_OPTIONS = [25, 50, 100, 200] as const;
 export const ROUND_TIME_OPTIONS = [15, 30, 60, 120] as const;

@@ -3,6 +3,7 @@ import {
   showErrorNotification,
 } from "../states/notifications";
 
+import * as BookSession from "../books/book-session";
 import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
@@ -392,7 +393,10 @@ async function updateHintsPosition(): Promise<void> {
 
 function buildWordHTML(word: string, wordIndex: number): string {
   let newlineafter = false;
-  let retval = `<div class='word' data-wordindex='${wordIndex}'>`;
+  // a word from a stretch of this book the reader already settled: white means
+  // read, grey means not (WORKORDER 进度模型 v2「白 / 灰」)
+  const settled = BookSession.isWordSettled(wordIndex) ? " settled" : "";
+  let retval = `<div class='word${settled}' data-wordindex='${wordIndex}'>`;
 
   const funbox = findSingleActiveFunboxWithFunction("getWordHtml");
   const chars = Strings.splitIntoCharacters(word);

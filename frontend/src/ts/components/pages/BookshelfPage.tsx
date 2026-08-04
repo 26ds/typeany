@@ -1,7 +1,6 @@
 import { createEffect, createSignal, For, JSXElement, Show } from "solid-js";
 import { z } from "zod";
 
-import { startBookSession } from "../../books/book-session";
 import {
   cleanExtractedText,
   extractText,
@@ -9,8 +8,8 @@ import {
   UPLOAD_ACCEPT,
 } from "../../books/extract-text";
 import * as LocalBooks from "../../books/local-books";
-import { navigate } from "../../controllers/route-controller";
-import { restartTestEvent } from "../../events/test";
+import { openBook } from "../../books/open-book";
+import { showBookGapsModal } from "../../states/book-gaps";
 import { getActivePage, setCustomTextIndicator } from "../../states/core";
 import {
   showErrorNotification,
@@ -19,6 +18,7 @@ import {
 import { showSimpleModal } from "../../states/simple-modal";
 import { formatAge } from "../../utils/date-and-time";
 import { download } from "../../utils/misc";
+import { GapPills } from "../books/GapPills";
 import { Button } from "../common/Button";
 import { Fa } from "../common/Fa";
 import { Page } from "../common/Page";
@@ -39,26 +39,6 @@ const nameSchema = z
   .min(1, "Name is required")
   .max(64, "Name must be 64 characters or less");
 
-/** opens the book on the book typing page, at its pointer */
-function openBook(name: string): void {
-  const book = LocalBooks.getBook(name);
-  if (book === undefined) {
-    showErrorNotification(`Book "${name}" is no longer on this device`);
-    return;
-  }
-
-  // before navigating: /read is the one route navigate() does not close the
-  // session for, and the active page only flips to "test" after the page
-  // transition finishes — too late to be a precondition
-  startBookSession(book);
-
-  void navigate("/read").then(() => {
-    if (getActivePage() === "test") {
-      restartTestEvent.dispatch({ isQuickRestart: false });
-    }
-  });
-}
-
 function BookCard(props: {
   book: LocalBooks.Book;
   onChanged: () => void;
@@ -67,6 +47,16 @@ function BookCard(props: {
   /** words settled, not cursor position — paging around must not move this */
   const doneWords = (): number => LocalBooks.getDoneWordCount(props.book);
   const isStarted = (): boolean => doneWords() > 0 || props.book.progress > 0;
+  const gaps = (): LocalBooks.Range[] => LocalBooks.getGaps(props.book);
+
+  /** a word range as a slice of the progress bar */
+  const span = ([start, end]: LocalBooks.Range): Record<string, string> => {
+    const total = Math.max(props.book.wordCount, 1);
+    return {
+      left: `${(start / total) * 100}%`,
+      width: `${((end - start) / total) * 100}%`,
+    };
+  };
 
   const handleReset = (): void => {
     showSimpleModal({
@@ -147,11 +137,31 @@ function BookCard(props: {
       </div>
 
       <div class="flex flex-col gap-1.5">
-        <div class="h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--sub-color)_28%,transparent)]">
-          <div
-            class="h-full rounded-full bg-main transition-[width]"
-            style={{ width: `${percentage()}%` }}
-          ></div>
+        {/* the bar is the book laid end to end: filled where it has been read,
+            with the unfinished stretches marked where they actually sit —
+            WORKORDER 进度模型 v2 */}
+        <div class="relative h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--sub-color)_28%,transparent)]">
+          <For each={props.book.done}>
+            {(range) => (
+              <div
+                class="absolute inset-y-0 rounded-full bg-main"
+                style={span(range)}
+              ></div>
+            )}
+          </For>
+          <For each={gaps()}>
+            {(range) => (
+              <div
+                class="absolute inset-y-0 rounded-full"
+                style={{
+                  ...span(range),
+                  // a one-word gap still has to be findable by eye
+                  "min-width": "3px",
+                  background: "var(--error-color)",
+                }}
+              ></div>
+            )}
+          </For>
         </div>
         <div class="flex justify-between text-em-xs text-sub">
           <span>
@@ -163,6 +173,30 @@ function BookCard(props: {
           <span>{percentage()}%</span>
         </div>
       </div>
+
+      <Show when={gaps().length > 0}>
+        <div class="flex flex-col gap-1.5">
+          <GapPills
+            book={props.book}
+            gaps={gaps().slice(0, LocalBooks.MAX_GAP_PILLS)}
+            onJump={(gap) => openBook(props.book.name, gap[0])}
+            onDismiss={(gap) => {
+              LocalBooks.dismissGap(props.book.name, gap);
+              props.onChanged();
+            }}
+          />
+          <Show when={gaps().length > LocalBooks.MAX_GAP_PILLS}>
+            <button
+              type="button"
+              class="cursor-pointer text-left text-em-xs text-sub transition-colors hover:text-text"
+              onClick={() => showBookGapsModal(props.book.name)}
+            >
+              +{gaps().length - LocalBooks.MAX_GAP_PILLS} more unfinished — show
+              all
+            </button>
+          </Show>
+        </div>
+      </Show>
 
       <div class="text-em-xs text-sub">
         <Show

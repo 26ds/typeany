@@ -553,6 +553,13 @@
   position: relative;
 }
 
+// A word from a stretch the reader already settled in an earlier round.
+// White means read, grey means not — WORKORDER 进度模型 v2「白 / 灰」. Scoped
+// past the live typing classes so a mistake still shows up red.
+#words .word.settled letter:not(.correct):not(.incorrect):not(.extra) {
+  color: var(--text-color);
+}
+
 #words.noErrorBorder,
 #resultWordsHistory.noErrorBorder {
   .word.error {

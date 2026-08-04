@@ -14,6 +14,7 @@ export type ModalId =
   | "CustomText"
   | "SaveCustomText"
   | "SavedTexts"
+  | "BookGaps"
   | "WordFilter"
   | "CustomGenerator"
   | "QuoteSearch"

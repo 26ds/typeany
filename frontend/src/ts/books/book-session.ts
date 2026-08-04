@@ -71,7 +71,33 @@ function rememberActiveBook(name: string | null): void {
  * Split out of `applyRound` because a test that is *finishing* has to line up
  * the next round's text without also re-running `setConfig` mid-finish.
  */
+/**
+ * Which words of the round on screen were already settled in an earlier pass,
+ * in round-local indices. Cached rather than derived per word: the renderer
+ * asks once per word, and reading the shelf clones every book's full text.
+ */
+let settledInRound: LocalBooks.Range[] = [];
+
+/**
+ * Is this word of the current round one the reader already finished? Those
+ * render white, everything else grey — WORKORDER 进度模型 v2「白 / 灰」.
+ */
+export function isWordSettled(wordIndex: number): boolean {
+  return settledInRound.some(
+    ([start, end]) => wordIndex >= start && wordIndex < end,
+  );
+}
+
 function pourRoundText(book: LocalBooks.Book): void {
+  settledInRound = book.done
+    .map(
+      ([start, end]): LocalBooks.Range => [
+        start - book.progress,
+        end - book.progress,
+      ],
+    )
+    .filter(([, end]) => end > 0);
+
   const words = LocalBooks.splitWords(book.text);
   const remaining = words.slice(book.progress);
 
@@ -119,6 +145,7 @@ export function startBookSession(book: LocalBooks.Book): void {
 export function endBookSession(): void {
   if (!isBookMode()) return;
 
+  settledInRound = [];
   const stash = stashLS.get();
   rememberActiveBook(null);
   setCustomTextIndicator(undefined);
@@ -180,6 +207,18 @@ export function jumpToGap(gap: LocalBooks.Range): LocalBooks.Book | undefined {
   const book = getActiveBook();
   if (book === undefined) return undefined;
   return moveCursor(book.name, gap[0]);
+}
+
+/**
+ * Past `MAX_GAP_PILLS` unfinished stretches the refresh button stops starting
+ * yet another round and shows the backlog instead (user decision 2026-08-04).
+ */
+export function hasTooManyGaps(): boolean {
+  const book = getActiveBook();
+  return (
+    book !== undefined &&
+    LocalBooks.getGaps(book).length > LocalBooks.MAX_GAP_PILLS
+  );
 }
 
 /** what settling a round did to the book, so the caller can say so */

@@ -1,6 +1,7 @@
 import { JSXElement } from "solid-js";
 
 import { ViewApeKeyModal } from "./account-settings/ViewApeKeyModal";
+import { BookGapsModal } from "./BookGapsModal";
 import { ContactModal } from "./ContactModal";
 import { CookiesModal } from "./CookiesModal";
 import { CustomTestDurationModal } from "./CustomTestDurationModal";
@@ -42,6 +43,7 @@ export function Modals(): JSXElement {
       <PbTablesModal />
       <ShareTestSettings />
       <MobileTestConfigModal />
+      <BookGapsModal />
       <CookiesModal />
       <AddPresetModal />
       <EditPresetModal />
