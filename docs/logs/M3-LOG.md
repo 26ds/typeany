@@ -75,4 +75,10 @@
 - **计划外变更**:`frontier` 是新的存储字段,老书迁移取 `max(已有 frontier, done 末尾, 光标)`,不丢进度
 - **线上复验时又抓到第二层**:数据改对了(`done` 从 `[[0,26]]` 变过来、`frontier` 守住 76),但**屏幕上的字还是白的** —— 重开时词表没变,monkeytype 不会重建那些 `.word` 元素,`buildWordHTML` 根本没再跑,class 就留在旧状态了。只改数据层的话,用户点下去看到的仍然是"没反应"。
   - 补 `test-ui.updateSettledWords()`:按 `data-wordindex` 就地 toggle `.settled`,不依赖重建;refresh 减完立刻调一次。就算上游哪天真的重建了,那时读到的也是刚更新过的缓存,两条路都对
-- **验证**:ts-check ✅ / lint ✅ / vitest 1066 passed(books 21 条)✅ / build ✅ / 线上复验见下
+- **验证**:ts-check ✅ / lint ✅ / vitest 1066 passed(books 21 条)✅ / build ✅
+- **线上复验**(https://typeany.vercel.app,2026-08-05,种一本和用户一模一样的书:1379 词、`progress: 76`、老格式):
+  1. 书架 `76 / 1,379 words · 6%`,没有胶囊 —— 复现用户的起点(0–76 连续读完,没有洞)
+  2. 进书 → 光标 76,w76–w100 **灰**(还没读到);点「back to my progress」→ w51–w75 **白**(读过)
+  3. 在这一屏点 refresh → 立刻:提示「25 words are unread again — this part is back on your retype list」、屏上 25 个词 `.settled` 全部消失、实测字色 `rgb(132,149,141)` = `--sub-color`(灰)
+  4. 数据:`done` 由 `[[0,76]]` 变成 `[[0,51]]`,`frontier` 守住 76(没被拖回去)
+  5. 退回书架:`51 / 1,379 words · 4%`,进度条绿段后面多出一小截红,底下一个胶囊 **`w51 w52 w53… ✗`** —— 用户要的"退出去能看到胶囊"到位
