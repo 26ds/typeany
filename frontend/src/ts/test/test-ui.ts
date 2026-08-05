@@ -391,6 +391,27 @@ async function updateHintsPosition(): Promise<void> {
   }
 }
 
+/**
+ * Re-marks the words on screen as read / unread without rebuilding them.
+ *
+ * Restarting with the same word set does not re-run `buildWordHTML`, so handing
+ * a stretch back with the refresh button left it still painted white until
+ * something else forced a render — the reader pressed refresh and saw nothing
+ * happen (reported 2026-08-05). See WORKORDER 进度模型 v2「refresh = 重打这一段」.
+ */
+export function updateSettledWords(): void {
+  const wordElements = qsa("#words .word");
+
+  for (let index = 0; index < wordElements.native.length; index++) {
+    const wordEl = wordElements.native[index];
+    if (wordEl === undefined) continue;
+
+    const attribute = wordEl.getAttribute("data-wordindex");
+    const wordIndex = attribute === null ? index : Number(attribute);
+    wordEl.classList.toggle("settled", BookSession.isWordSettled(wordIndex));
+  }
+}
+
 function buildWordHTML(word: string, wordIndex: number): string {
   let newlineafter = false;
   // a word from a stretch of this book the reader already settled: white means

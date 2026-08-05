@@ -73,4 +73,6 @@
   - 只挂在 refresh **按钮**上。改回合长度、点箭头、开书都会触发内部重开,那些不是"我要重打",一律不减
   - 键盘 `tab + enter` 目前也不减(用户原话只说了 refresh 按钮)—— 待用户表态
 - **计划外变更**:`frontier` 是新的存储字段,老书迁移取 `max(已有 frontier, done 末尾, 光标)`,不丢进度
+- **线上复验时又抓到第二层**:数据改对了(`done` 从 `[[0,26]]` 变过来、`frontier` 守住 76),但**屏幕上的字还是白的** —— 重开时词表没变,monkeytype 不会重建那些 `.word` 元素,`buildWordHTML` 根本没再跑,class 就留在旧状态了。只改数据层的话,用户点下去看到的仍然是"没反应"。
+  - 补 `test-ui.updateSettledWords()`:按 `data-wordindex` 就地 toggle `.settled`,不依赖重建;refresh 减完立刻调一次。就算上游哪天真的重建了,那时读到的也是刚更新过的缓存,两条路都对
 - **验证**:ts-check ✅ / lint ✅ / vitest 1066 passed(books 21 条)✅ / build ✅ / 线上复验见下

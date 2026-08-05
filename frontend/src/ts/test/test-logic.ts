@@ -1291,6 +1291,9 @@ qs(".pageTest")?.onChild("click", "#restartTestButton", () => {
     // so it goes grey and joins the retype list
     const unsettled = BookSession.unsettleCurrentRound();
     if (unsettled > 0) {
+      // repaint in place: the restart below reuses these word elements, so
+      // nothing would otherwise take the white off them
+      TestUI.updateSettledWords();
       showNoticeNotification(
         `${unsettled} ${unsettled === 1 ? "word is" : "words are"} unread again — this part is back on your retype list`,
         { durationMs: 5000 },
