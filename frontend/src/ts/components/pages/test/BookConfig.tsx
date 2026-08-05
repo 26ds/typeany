@@ -81,8 +81,10 @@ export function BookConfig(): JSXElement {
   const isAwayFromProgress = (): boolean => {
     const current = book();
     if (current === undefined) return false;
+    // `done`, not the frontier: after refreshing the only round you had read
+    // there is no progress left to go back to
     return (
-      LocalBooks.getFrontier(current) > 0 &&
+      current.done.length > 0 &&
       current.progress !== LocalBooks.getLastFinishedStart(current)
     );
   };

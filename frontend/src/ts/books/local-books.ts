@@ -57,6 +57,13 @@ const StoredBookSchema = z.object({
   done: z.array(RangeSchema),
   /** gaps dismissed with ✗ — still unread and still grey, just no longer listed */
   skipped: z.array(RangeSchema),
+  /**
+   * How far into the book the reader has ever got. A **high-water mark**: it
+   * cannot be derived from `done`, because hitting refresh takes a stretch back
+   * out of `done` on purpose, and the hole it leaves has to stay visible as
+   * something to retype rather than silently becoming "not read this far yet".
+   */
+  frontier: z.number().int().nonnegative(),
   wordCount: z.number().int().nonnegative(),
   createdAt: z.number().nonnegative(),
   lastOpenedAt: z.number().nonnegative(),
@@ -77,6 +84,7 @@ const LegacyBookSchema = z.object({
   progress: z.number().nonnegative().optional(),
   done: z.array(RangeSchema).optional(),
   skipped: z.array(RangeSchema).optional(),
+  frontier: z.number().nonnegative().optional(),
   wordCount: z.number().nonnegative().optional(),
   createdAt: z.number().nonnegative().optional(),
   lastOpenedAt: z.number().nonnegative().optional(),
@@ -148,6 +156,11 @@ function subtractRange(ranges: Range[], [cutStart, cutEnd]: Range): Range[] {
   return kept.filter(([start, end]) => end > start);
 }
 
+/** how many words a list of ranges covers */
+function rangeTotal(ranges: Range[]): number {
+  return ranges.reduce((total, [start, end]) => total + (end - start), 0);
+}
+
 /** the holes `ranges` leaves in `[0, end)`; `ranges` must be normalized */
 function invertRanges(ranges: Range[], end: number): Range[] {
   const holes: Range[] = [];
@@ -184,15 +197,20 @@ function migrateShelf(oldData: Record<string, unknown> | unknown[]): Bookshelf {
     );
 
     const cursor = clampProgress(parsed.data.progress ?? 0, wordCount);
+    // A book from before 进度模型 v2 was read strictly forward, so "the cursor
+    // is at N" and "the first N words are settled" said the same thing. Nobody
+    // loses a percentage point to the upgrade.
+    const done = normalizeRanges(parsed.data.done ?? [[0, cursor]], wordCount);
 
     migrated[name] = {
       text,
       progress: cursor,
-      // A book from before 进度模型 v2 was read strictly forward, so "the
-      // cursor is at N" and "the first N words are settled" said the same
-      // thing. Nobody loses a percentage point to the upgrade.
-      done: normalizeRanges(parsed.data.done ?? [[0, cursor]], wordCount),
+      done,
       skipped: normalizeRanges(parsed.data.skipped ?? [], wordCount),
+      frontier: clampProgress(
+        Math.max(parsed.data.frontier ?? 0, done.at(-1)?.[1] ?? 0, cursor),
+        wordCount,
+      ),
       wordCount,
       createdAt: parsed.data.createdAt ?? now,
       lastOpenedAt: parsed.data.lastOpenedAt ?? now,
@@ -244,6 +262,7 @@ function importLegacyShortTexts(): void {
           progress: 0,
           done: [],
           skipped: [],
+          frontier: 0,
           wordCount: splitWords(text).length,
           createdAt: now,
           lastOpenedAt: now,
@@ -322,6 +341,7 @@ export function addBook(name: string, text: string | string[]): boolean {
     progress: 0,
     done: [],
     skipped: [],
+    frontier: 0,
     wordCount: splitWords(joined).length,
     createdAt: shelf[name]?.createdAt ?? now,
     lastOpenedAt: now,
@@ -388,7 +408,39 @@ export function settleRound(name: string, start: number, end: number): boolean {
   book.done = normalizeRanges([...book.done, settled], book.wordCount);
   // going back and typing a stretch you had dismissed means you want it back
   book.skipped = subtractRange(book.skipped, settled);
+  book.frontier = Math.max(book.frontier, settled[1]);
   book.progress = settled[1];
+
+  return save(shelf);
+}
+
+/**
+ * Takes a stretch back out of what has been read — the refresh button on the
+ * typing page (WORKORDER 进度模型 v2「refresh = 重打这一段」). Those words go
+ * grey again, drop out of the percentage, and come back as something to retype.
+ *
+ * The frontier deliberately stays where it was: without that, undoing the
+ * furthest stretch would pull the frontier back with it and the hole would
+ * vanish instead of turning into a pill.
+ */
+export function unsettleRange(name: string, range: Range): boolean {
+  const shelf = readShelf();
+  const book = shelf[name];
+  if (book === undefined) return false;
+
+  const cut: Range = [
+    clampProgress(range[0], book.wordCount),
+    clampProgress(range[1], book.wordCount),
+  ];
+  if (cut[1] <= cut[0]) return false;
+
+  const remaining = subtractRange(book.done, cut);
+  // nothing there had been read — an ordinary restart, leave the book alone
+  if (rangeTotal(remaining) === rangeTotal(book.done)) return false;
+
+  book.done = normalizeRanges(remaining, book.wordCount);
+  // deciding to retype it undoes a previous ✗
+  book.skipped = subtractRange(book.skipped, cut);
 
   return save(shelf);
 }
@@ -424,6 +476,17 @@ export function getRoundLength(book: Book): number {
   return book.roundMode === "words" ? book.roundWords : book.wordCount;
 }
 
+/**
+ * How far one press of an arrow moves, and how much of the book one refresh
+ * hands back. A time round has no word count until it is typed, so it borrows
+ * the default — same figure the arrows have always paged by.
+ */
+export function getRoundStep(book: Book): number {
+  return book.roundMode === "words"
+    ? book.roundWords
+    : DEFAULT_ROUND.roundWords;
+}
+
 /** the one and only way the white percentage is allowed to go down */
 export function resetProgress(name: string): boolean {
   const shelf = readShelf();
@@ -433,6 +496,7 @@ export function resetProgress(name: string): boolean {
   book.progress = 0;
   book.done = [];
   book.skipped = [];
+  book.frontier = 0;
   return save(shelf);
 }
 
@@ -450,14 +514,21 @@ export function touchBook(name: string): boolean {
 
 /** words actually settled — the white ones */
 export function getDoneWordCount(book: Book): number {
-  return book.done.reduce((total, [start, end]) => total + (end - start), 0);
+  return rangeTotal(book.done);
 }
 
 /**
- * The furthest word ever settled. Only `resetProgress` moves it backwards —
- * paging around with the arrows must not, which is the point of the split.
+ * The furthest word the reader has ever reached. Only `resetProgress` moves it
+ * backwards — not the arrows (that was the reported bug) and not refresh
+ * (which leaves a hole behind on purpose, and a hole past the frontier would
+ * be invisible).
  */
 export function getFrontier(book: Book): number {
+  return Math.max(book.frontier, book.done.at(-1)?.[1] ?? 0);
+}
+
+/** the end of the last stretch actually read, which is not always the frontier */
+function getDoneEnd(book: Book): number {
   return book.done.at(-1)?.[1] ?? 0;
 }
 
@@ -483,11 +554,11 @@ export function getGaps(book: Book): Range[] {
  * them on new text (WORKORDER 进度模型 v2「回到进度」).
  */
 export function getLastFinishedStart(book: Book): number {
-  const frontier = getFrontier(book);
-  if (frontier === 0) return 0;
+  const doneEnd = getDoneEnd(book);
+  if (doneEnd === 0) return 0;
 
   const lastRunStart = book.done.at(-1)?.[0] ?? 0;
-  return Math.max(lastRunStart, frontier - getRoundLength(book));
+  return Math.max(lastRunStart, doneEnd - getRoundStep(book));
 }
 
 /** the first few words of a range, for a gap pill's label */

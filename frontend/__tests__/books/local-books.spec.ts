@@ -115,6 +115,63 @@ describe("local-books progress model", () => {
     });
   });
 
+  // "refresh 当前打字界面:让这个打字界面变灰" — the refresh button means
+  // "I am doing this bit again", not "nothing happened"
+  describe("handing a stretch back with refresh", () => {
+    beforeEach(() => {
+      LocalBooks.settleRound(NAME, 0, 100);
+    });
+
+    it("takes those words out of the white count", () => {
+      expect(LocalBooks.unsettleRange(NAME, [75, 100])).toBe(true);
+
+      expect(book().done).toEqual([[0, 75]]);
+      expect(LocalBooks.getDoneWordCount(book())).toBe(75);
+    });
+
+    it("leaves the hole visible even at the very end of what was read", () => {
+      LocalBooks.unsettleRange(NAME, [75, 100]);
+
+      // the frontier is a high-water mark: without it the hole would fall
+      // outside "already reached" and quietly stop being a gap
+      expect(LocalBooks.getFrontier(book())).toBe(100);
+      expect(LocalBooks.getGaps(book())).toEqual([[75, 100]]);
+    });
+
+    it("does nothing to a round that was never read", () => {
+      expect(LocalBooks.unsettleRange(NAME, [120, 145])).toBe(false);
+      expect(book().done).toEqual([[0, 100]]);
+    });
+
+    it("splits a stretch when the retype is in the middle of it", () => {
+      LocalBooks.unsettleRange(NAME, [25, 50]);
+
+      expect(book().done).toEqual([
+        [0, 25],
+        [50, 100],
+      ]);
+      expect(LocalBooks.getGaps(book())).toEqual([[25, 50]]);
+    });
+
+    it("closes again once that stretch is typed", () => {
+      LocalBooks.unsettleRange(NAME, [75, 100]);
+      LocalBooks.settleRound(NAME, 75, 100);
+
+      expect(book().done).toEqual([[0, 100]]);
+      expect(LocalBooks.getGaps(book())).toEqual([]);
+      expect(LocalBooks.getProgressPercentage(book())).toBe(50);
+    });
+
+    it("undoes a ✗ — asking to retype it means you want it back", () => {
+      LocalBooks.unsettleRange(NAME, [75, 100]);
+      LocalBooks.dismissGap(NAME, [75, 100]);
+      expect(LocalBooks.getGaps(book())).toEqual([]);
+
+      LocalBooks.unsettleRange(NAME, [50, 100]);
+      expect(LocalBooks.getGaps(book())).toEqual([[50, 100]]);
+    });
+  });
+
   it("sends 'back to my progress' to the start of the last finished round", () => {
     LocalBooks.setRound(NAME, { roundMode: "words", roundWords: 25 });
     LocalBooks.settleRound(NAME, 0, 25);
@@ -149,6 +206,7 @@ describe("local-books progress model", () => {
     expect(book().done).toEqual([]);
     expect(book().skipped).toEqual([]);
     expect(book().progress).toBe(0);
+    expect(book().frontier).toBe(0);
     expect(LocalBooks.getProgressPercentage(book())).toBe(0);
   });
 
@@ -176,6 +234,7 @@ describe("migrating a book from before the split", () => {
     expect(migrated?.done).toEqual([[0, 60]]);
     expect(migrated?.skipped).toEqual([]);
     expect(migrated?.progress).toBe(60);
+    expect(migrated?.frontier).toBe(60);
     // nobody loses a percentage point to the upgrade
     expect(Books.getProgressPercentage(migrated as LocalBooks.Book)).toBe(30);
   });

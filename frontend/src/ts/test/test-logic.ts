@@ -1277,13 +1277,25 @@ qs(".pageTest")?.onChild("click", "#testInitFailed button.restart", () => {
 qs(".pageTest")?.onChild("click", "#restartTestButton", () => {
   if (isResultCalculating()) return;
 
-  // Too many stretches started and abandoned to keep making more: show the
-  // backlog instead, with a way through it (WORKORDER 进度模型 v2, user
-  // decision 2026-08-04). The dialog carries its own "restart anyway".
   const openBookName = activeBookName();
-  if (openBookName !== null && BookSession.hasTooManyGaps()) {
-    showBookGapsModal(openBookName);
-    return;
+  if (openBookName !== null) {
+    // Too many stretches started and abandoned to keep making more: show the
+    // backlog instead, with a way through it (WORKORDER 进度模型 v2, user
+    // decision 2026-08-04). The dialog carries its own "restart anyway".
+    if (BookSession.hasTooManyGaps()) {
+      showBookGapsModal(openBookName);
+      return;
+    }
+
+    // refresh in a book means "I am doing this bit again": hand the round back
+    // so it goes grey and joins the retype list
+    const unsettled = BookSession.unsettleCurrentRound();
+    if (unsettled > 0) {
+      showNoticeNotification(
+        `${unsettled} ${unsettled === 1 ? "word is" : "words are"} unread again — this part is back on your retype list`,
+        { durationMs: 5000 },
+      );
+    }
   }
 
   if (

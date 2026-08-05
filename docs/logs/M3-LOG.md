@@ -55,3 +55,22 @@
   - 移动端(`md` 以下)胶囊条整体隐藏,所以「回到进度」在手机上还看不到 —— 跟「移动端书籍页仍用 Random 的 test settings 弹窗」是同一笔账,一起在 M3 后面处理
   - 键盘 `tab + enter` 重开不走缺口拦截(只拦了 refresh 按钮),按用户原话「点 refresh」照做
 - **下一步**:M3d 续打灰显上一个词
+
+## M3c-fix — refresh 是「重打这一段」,不是空操作(2026-08-05)
+
+**我读错了规格。** 用户原话是「refresh 当前打字界面:让这个打字界面**变灰**(没打的、跳过的、**refresh 过没打完的**)」—— refresh 是一个动作。我做成了"refresh 不记任何东西"(既不加也不减),用户点下去屏幕没变灰、退回书架也没有胶囊,因为他那本书 0–76 是连续读完的、压根没有洞。
+
+回头看,用户后面两句本来就把答案写在那儿了,是我没接上:「一个 ✗ **重新打的没结算的**就少一个」「如果用户点击了 **refresh 但是没结算完的**超过了 6 个胶囊」—— 胶囊的来源就是 refresh。
+
+- **实现**:
+  - `local-books.ts` 新增 `unsettleRange(name, range)`:从 `done` 里减掉这一段,同时把这段从 `skipped` 里挖掉(重新认领 = 撤销之前的 ✗);减不动就返回 `false`(那一轮本来就没读过)
+  - 新增存储字段 **`frontier`(高水位)**。原先进度线是 `done` 最后一段的结尾推出来的,一旦 refresh 把最后一段交回去,进度线跟着退,洞就落到进度线之外、`getGaps` 看不见了 —— 那一段会凭空消失而不是变成胶囊。现在 `frontier` 只在结算时前推,只有 `reset progress` 能让它退
+  - `book-session.unsettleCurrentRound()`:范围 = `[光标, 光标 + getRoundStep(book))`,减完重新铺一遍这一轮让它立刻重绘成灰;返回交回去了多少词
+  - `test-logic` 的 `#restartTestButton` 处理:书籍模式下先判缺口 >6(弹窗优先),否则调 `unsettleCurrentRound()`,真的减掉了才弹一条提示说明百分比为什么会掉
+  - `getLastFinishedStart` 改成按 `done` 的结尾算(不是 frontier),「回到我的进度」的显示条件也改成 `done.length > 0` —— 把唯一读过的一轮 refresh 掉之后,已经没有"进度"可回了
+  - `getRoundStep()` 抽出来,箭头步长和 refresh 交回的范围共用一个定义(时间模式借 25 词)
+- **交互逻辑**:
+  - 只挂在 refresh **按钮**上。改回合长度、点箭头、开书都会触发内部重开,那些不是"我要重打",一律不减
+  - 键盘 `tab + enter` 目前也不减(用户原话只说了 refresh 按钮)—— 待用户表态
+- **计划外变更**:`frontier` 是新的存储字段,老书迁移取 `max(已有 frontier, done 末尾, 光标)`,不丢进度
+- **验证**:ts-check ✅ / lint ✅ / vitest 1066 passed(books 21 条)✅ / build ✅ / 线上复验见下

@@ -63,7 +63,7 @@ export function BookGapsModal(): JSXElement {
               </Show>
 
               <div class="flex flex-wrap gap-2">
-                <Show when={LocalBooks.getFrontier(current()) > 0}>
+                <Show when={current().done.length > 0}>
                   <Button
                     fa={{ icon: "fa-forward" }}
                     text="back to my progress"
