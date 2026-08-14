@@ -556,7 +556,14 @@
 // A word from a stretch the reader already settled in an earlier round.
 // White means read, grey means not — WORKORDER 进度模型 v2「白 / 灰」. Scoped
 // past the live typing classes so a mistake still shows up red.
-#words .word.settled letter:not(.correct):not(.incorrect):not(.extra) {
+//
+// Only while *looking*, though: `.typing` drops it for the duration of a round.
+// Typing is always grey turning white (user 2026-08-14「我要打字的效果永远是在
+// 灰色的打,打完了是白色的」), and on a stretch already read the untyped letters
+// would otherwise start out white and leave nothing to turn.
+#words:not(.typing)
+  .word.settled
+  letter:not(.correct):not(.incorrect):not(.extra) {
   color: var(--text-color);
 }
 

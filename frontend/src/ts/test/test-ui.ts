@@ -1827,6 +1827,9 @@ export async function afterTestWordChange(
 }
 
 export function onTestStart(): void {
+  // typing is always grey turning white, even over a stretch read before —
+  // see the `.typing` note in test.scss
+  wordsEl.addClass("typing");
   Focus.set(true);
   setCurrentLiveStats({
     wpm: 0,
@@ -1864,6 +1867,8 @@ export async function fadeInAfterRestart(noAnim: boolean): Promise<void> {
 }
 
 export function onTestRestart(source: "testPage" | "resultPage"): void {
+  // back to looking: a stretch read before shows white again until typing starts
+  wordsEl.removeClass("typing");
   qs("#result")?.hide();
   qs("#typingTest")?.setStyle({ opacity: "0" }).show();
   getInputElement().style.left = "0";
@@ -1908,6 +1913,7 @@ export function onTestRestart(source: "testPage" | "resultPage"): void {
 }
 
 export function onTestFinish(): void {
+  wordsEl.removeClass("typing");
   Caret.hide();
   setTestFocusState("focused");
   if (Config.playSoundOnClick === "16") {
