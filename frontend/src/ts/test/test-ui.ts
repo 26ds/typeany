@@ -537,6 +537,10 @@ function updateWordWrapperClasses(): void {
 }
 
 function showWords(): void {
+  // a freshly laid out set of words is, by definition, not being typed yet —
+  // clearing here means the class cannot survive leaving the page mid-round and
+  // coming back, which would keep a stretch already read looking unread
+  wordsEl.removeClass("typing");
   wordsEl.setHtml("");
 
   if (Config.mode === "zen") {
