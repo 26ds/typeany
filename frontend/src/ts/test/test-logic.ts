@@ -10,8 +10,6 @@ import {
   showSuccessNotification,
 } from "../states/notifications";
 import * as BookSession from "../books/book-session";
-import { activeBookName } from "../books/book-session";
-import { showBookGapsModal } from "../states/book-gaps";
 import * as CustomText from "./custom-text";
 import * as PractiseWords from "./practise-words";
 import * as Funbox from "./funbox/funbox";
@@ -1274,32 +1272,13 @@ qs(".pageTest")?.onChild("click", "#testInitFailed button.restart", () => {
   void restart();
 });
 
+// In a book this restarts the round on screen and nothing more. It used to
+// hand the round back — grey again, out of the percentage — until 进度模型 v3
+// (2026-08-14) moved retyping onto attempt records, which leave the reading
+// alone. Keeping it plain also makes it agree with `tab > enter`, the other way
+// to restart, which never had a book meaning of its own.
 qs(".pageTest")?.onChild("click", "#restartTestButton", () => {
   if (isResultCalculating()) return;
-
-  const openBookName = activeBookName();
-  if (openBookName !== null) {
-    // Too many stretches started and abandoned to keep making more: show the
-    // backlog instead, with a way through it (WORKORDER 进度模型 v2, user
-    // decision 2026-08-04). The dialog carries its own "restart anyway".
-    if (BookSession.hasTooManyGaps()) {
-      showBookGapsModal(openBookName);
-      return;
-    }
-
-    // refresh in a book means "I am doing this bit again": hand the round back
-    // so it goes grey and joins the retype list
-    const unsettled = BookSession.unsettleCurrentRound();
-    if (unsettled > 0) {
-      // repaint in place: the restart below reuses these word elements, so
-      // nothing would otherwise take the white off them
-      TestUI.updateSettledWords();
-      showNoticeNotification(
-        `${unsettled} ${unsettled === 1 ? "word is" : "words are"} unread again — this part is back on your retype list`,
-        { durationMs: 5000 },
-      );
-    }
-  }
 
   if (
     isTestActive() &&

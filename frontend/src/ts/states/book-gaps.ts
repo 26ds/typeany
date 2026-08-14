@@ -3,9 +3,8 @@ import { createSignal } from "solid-js";
 import { showModal } from "./modals";
 
 /**
- * Which book the unfinished-parts dialog is showing. It is opened from two
- * places — the refresh button on the typing page, and the "+N more" on a book
- * card — and those are not always the same book.
+ * Which book the unfinished-parts dialog is showing — not necessarily the book
+ * open on the typing page, since it is opened from a book card.
  */
 const [gapsModalBook, setGapsModalBook] = createSignal<string | null>(null);
 

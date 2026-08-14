@@ -205,48 +205,6 @@ export function jumpToGap(gap: LocalBooks.Range): LocalBooks.Book | undefined {
   return moveCursor(book.name, gap[0]);
 }
 
-/**
- * The refresh button, in a book: "I am doing this bit again."
- *
- * Hands the round on screen back — those words go grey, drop out of the
- * percentage, and turn into a pill to retype (WORKORDER 进度模型 v2
- * 「refresh = 重打这一段」). On a round that was never settled, which is the
- * ordinary mid-round restart, there is nothing to hand back and this does
- * nothing.
- *
- * Returns how many words went back to unread, so the caller can say so.
- */
-export function unsettleCurrentRound(): number {
-  const book = getActiveBook();
-  if (book === undefined) return 0;
-
-  const before = LocalBooks.getDoneWordCount(book);
-  const end = Math.min(
-    book.progress + LocalBooks.getRoundStep(book),
-    book.wordCount,
-  );
-  if (!LocalBooks.unsettleRange(book.name, [book.progress, end])) return 0;
-
-  const after = LocalBooks.getBook(book.name);
-  if (after === undefined) return 0;
-
-  // re-lay the round so it repaints grey straight away
-  applyRound(after);
-  return before - LocalBooks.getDoneWordCount(after);
-}
-
-/**
- * Past `MAX_GAP_PILLS` unfinished stretches the refresh button stops starting
- * yet another round and shows the backlog instead (user decision 2026-08-04).
- */
-export function hasTooManyGaps(): boolean {
-  const book = getActiveBook();
-  return (
-    book !== undefined &&
-    LocalBooks.getGaps(book).length > LocalBooks.MAX_GAP_PILLS
-  );
-}
-
 /** what settling a round did to the book, so the caller can say so */
 export type RoundOutcome =
   | { kind: "advanced"; doneWords: number; totalWords: number }

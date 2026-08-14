@@ -82,3 +82,29 @@
   3. 在这一屏点 refresh → 立刻:提示「25 words are unread again — this part is back on your retype list」、屏上 25 个词 `.settled` 全部消失、实测字色 `rgb(132,149,141)` = `--sub-color`(灰)
   4. 数据:`done` 由 `[[0,76]]` 变成 `[[0,51]]`,`frontier` 守住 76(没被拖回去)
   5. 退回书架:`51 / 1,379 words · 4%`,进度条绿段后面多出一小截红,底下一个胶囊 **`w51 w52 w53… ✗`** —— 用户要的"退出去能看到胶囊"到位
+
+## M3f — 进度模型 v3 数据层:重打记次数,不动百分比(2026-08-14)
+
+用户 2026-08-14 拍板改世界观:重打**不再**把这一段从 `done` 里收回,而是记成一条「第 N 次」的记录。理由是他这次要的东西——右上角 1 2 3 徽章、「上次打到哪」、战绩、✗ 删记录——全都要求原成绩留在原地不动。M3c-fix 那套"refresh 收回这一段"因此整块作废(spec 见 `WORKORDER.md`「进度模型 v3」)。**本片纯数据层,界面上只有一处能看出来:书里点 refresh 不再变灰、不再掉百分比。**
+
+- **实现**:
+  - `local-books.ts` 新增 `attempts` 存储字段 + `AttemptSchema`:`id / range / limit / typedWords / activeMs / startedAt / finishedAt? / stats?`。`finishedAt` 有无 = 打完了还是可以回去接着打,不再另存一个状态字段
+  - `limit`(这一次是按几词还是几秒打的)存在记录自己身上,不读书当前的设置:回合长度随时可改,记录得说清楚它当年量的是什么;暂停的时间轮也靠它算剩余秒(`getAttemptRemainingMs` = `limit.value*1000 - activeMs`,离开的时间一秒不算)
+  - 写:`saveAttempt`(按 id 覆盖,`activeMs` 是**赋值不是累加**,同一次存两遍不会翻倍)、`deleteAttempt`(✗)、`newAttemptId()`
+  - 读:`getAttemptsOverlapping`(按 `startedAt` 升序 = 徽章 1 2 3 的顺序)、`getUnfinishedAttempts`、`getFinishedAttempts`、`isAttemptFinished`
+  - `getRetypeRange(book)`:光标站在已结算的那一段里 → 返回这次要重打的区间,否则 `undefined`(= 普通往下读)。**段尾是硬边界**:25 词的段选 50 词也只打到段尾;时间轮给整段、让表来掐
+  - 容量:同一区间最多 10 条、整本最多 100 条;淘汰**先扔打完的**(那只是纪念品)、同类里扔最旧的,并且**永不淘汰刚写的那一条**
+  - `resetProgress` 一并清空 `attempts`
+- **拆除**:`local-books.unsettleRange` / `book-session.unsettleCurrentRound` / `hasTooManyGaps` 全删;`test-logic` 的 `#restartTestButton` 回到"只重开这一轮";缺口窗里的「restart this round anyway」删掉(它只为打字页弹窗存在,现在只有书架 `+N` 会打开这个窗)
+  - 顺带消解了 WORKORDER 待确认 0.5:refresh 按钮和 `tab + enter` 从此行为一致
+  - `frontier` 字段**保留**:v3 之后没有东西再从 `done` 里减,它等价于 `done` 末尾;但线上书里已经有这个字段,回迁没有收益,注释里写清了它现在是什么
+  - `test-ui.updateSettledWords()` 保留(M3g 的回看态要用它就地切白/灰),注释改成讲机制而不是讲 refresh
+- **交互逻辑**(本片只落数据,行为在 M3g/M3i):
+  - 重打绝不碰 `done` / `skipped` / `frontier` —— 全站能让百分比下降的只剩 `reset progress`
+  - 一屏跨白灰交界不算重打(光标站在灰字上就是普通续读),灰的部分照常结算
+  - 老书迁移:没有 `attempts` 就给 `[]`;**存坏了的记录不许连累书** —— 迁移用 `.catch([])` 兜住,坏记录丢掉、书和进度留下
+- **计划外变更**:计划里写的 `saveAttempt / finishAttempt / deleteAttempt` 合成 `saveAttempt`(upsert)+ `deleteAttempt`。多一个 `finishAttempt` 只会多一条改状态的路,`finishedAt` 一个字段已经把"完没完"说清楚了
+- **一个真被测试抓住的 bug**:淘汰函数写成 `slice(0, excess)`,`excess` 为负时 JS 把它当"从末尾倒数",于是每存到第 6 条就误删一条、总数永远停在 5。补了 `excess <= 0` 直接返回空。这条断言是先红后绿的(实测 `expected 10, got 5`)
+- **验证**:ts-check ✅ / lint(type-aware)✅ / vitest 1077 passed(books 32 条,新增 19 条)✅ / build ✅
+- **已知问题/未完**:徽章、回看滚动、战绩页、ESC 暂停都还没有界面 —— 分别在 M3g / M3i
+- **下一步**:M3g(打字页回看 + 重打徽章,连带 M3d 续打白显上一个词)

@@ -18,10 +18,19 @@ import { LocalStorageWithSchema } from "../utils/local-storage-with-schema";
 
 /**
  * How many gap pills a book card shows before it stops listing them. Past this
- * many unfinished stretches, the refresh button on the typing page opens the
- * list instead of starting yet another round (user decision 2026-08-04).
+ * many unfinished stretches the card shows a `+N` that opens the full list
+ * (user decision 2026-08-04).
  */
 export const MAX_GAP_PILLS = 6;
+
+/**
+ * How many attempts one stretch keeps. A stretch typed over and over must not
+ * grow the shelf without bound — localStorage has no room to spare and a failed
+ * write is silent.
+ */
+export const MAX_ATTEMPTS_PER_RANGE = 10;
+/** and a ceiling across the whole book, for a reader who retypes everywhere */
+export const MAX_ATTEMPTS_PER_BOOK = 100;
 
 /** how long one round of this book is — WORKORDER 回合设置, per book */
 export const ROUND_WORD_OPTIONS = [25, 50, 100, 200] as const;
@@ -38,6 +47,62 @@ const RangeSchema = z.tuple([
   z.number().int().nonnegative(),
 ]);
 export type Range = z.infer<typeof RangeSchema>;
+
+/** enough of a finished attempt to rebuild its result screen */
+const AttemptStatsSchema = z.object({
+  wpm: z.number().nonnegative(),
+  rawWpm: z.number().nonnegative(),
+  acc: z.number().nonnegative(),
+  consistency: z.number().nonnegative(),
+  /** correct / incorrect / extra / missed — the four the result screen shows */
+  charStats: z.tuple([
+    z.number().int().nonnegative(),
+    z.number().int().nonnegative(),
+    z.number().int().nonnegative(),
+    z.number().int().nonnegative(),
+  ]),
+  /** the per-second curve, when there was one worth keeping */
+  chart: z
+    .object({
+      wpm: z.array(z.number().nonnegative()),
+      raw: z.array(z.number().nonnegative()),
+      err: z.array(z.number().nonnegative()),
+    })
+    .optional(),
+});
+export type AttemptStats = z.infer<typeof AttemptStatsSchema>;
+
+/**
+ * One pass over a stretch the reader had already read — WORKORDER 进度模型 v3.
+ *
+ * Retyping never touches `done`, so none of this moves the percentage: it is a
+ * record of *how* a stretch went, kept beside the book rather than inside its
+ * score. An attempt with no `finishedAt` was left partway through and is
+ * somewhere the reader can go back to; one with a `finishedAt` is a souvenir.
+ */
+const AttemptSchema = z.object({
+  id: z.string(),
+  /** the words this pass covers — fixed when it starts, never grows */
+  range: RangeSchema,
+  /**
+   * The round setting it was started under. Stored rather than read off the
+   * book, because the reader can change the round length afterwards and this
+   * record still has to say what it was measuring — and a paused time attempt
+   * needs its own clock back when it resumes.
+   */
+  limit: z.object({
+    mode: z.enum(["words", "time"]),
+    value: z.number().positive(),
+  }),
+  /** how far into `range` this pass got */
+  typedWords: z.number().int().nonnegative(),
+  /** time actually spent typing; paused and away time is not in here */
+  activeMs: z.number().nonnegative(),
+  startedAt: z.number().nonnegative(),
+  finishedAt: z.number().nonnegative().optional(),
+  stats: AttemptStatsSchema.optional(),
+});
+export type Attempt = z.infer<typeof AttemptSchema>;
 
 const StoredBookSchema = z.object({
   text: z.string(),
@@ -58,12 +123,18 @@ const StoredBookSchema = z.object({
   /** gaps dismissed with ✗ — still unread and still grey, just no longer listed */
   skipped: z.array(RangeSchema),
   /**
-   * How far into the book the reader has ever got. A **high-water mark**: it
-   * cannot be derived from `done`, because hitting refresh takes a stretch back
-   * out of `done` on purpose, and the hole it leaves has to stay visible as
-   * something to retype rather than silently becoming "not read this far yet".
+   * How far into the book the reader has ever got — a **high-water mark**.
+   *
+   * It exists because refresh used to take a stretch back out of `done`, which
+   * would otherwise have pulled the frontier back with it and made the hole
+   * vanish. 进度模型 v3 (2026-08-14) dropped that, so today nothing shrinks
+   * `done` short of a full reset and this tracks its end. Kept anyway: books
+   * already on shelves carry it, and it is the only place a "hand this stretch
+   * back" feature could ever hang.
    */
   frontier: z.number().int().nonnegative(),
+  /** passes over stretches already read — see `AttemptSchema` */
+  attempts: z.array(AttemptSchema),
   wordCount: z.number().int().nonnegative(),
   createdAt: z.number().nonnegative(),
   lastOpenedAt: z.number().nonnegative(),
@@ -85,6 +156,10 @@ const LegacyBookSchema = z.object({
   done: z.array(RangeSchema).optional(),
   skipped: z.array(RangeSchema).optional(),
   frontier: z.number().nonnegative().optional(),
+  // forgiving on purpose: a single malformed attempt must not cost the reader
+  // the book it is attached to, and the whole point of the migration path is
+  // that it never drops text
+  attempts: z.array(AttemptSchema).catch([]).optional(),
   wordCount: z.number().nonnegative().optional(),
   createdAt: z.number().nonnegative().optional(),
   lastOpenedAt: z.number().nonnegative().optional(),
@@ -211,6 +286,7 @@ function migrateShelf(oldData: Record<string, unknown> | unknown[]): Bookshelf {
         Math.max(parsed.data.frontier ?? 0, done.at(-1)?.[1] ?? 0, cursor),
         wordCount,
       ),
+      attempts: parsed.data.attempts ?? [],
       wordCount,
       createdAt: parsed.data.createdAt ?? now,
       lastOpenedAt: parsed.data.lastOpenedAt ?? now,
@@ -263,6 +339,7 @@ function importLegacyShortTexts(): void {
           done: [],
           skipped: [],
           frontier: 0,
+          attempts: [],
           wordCount: splitWords(text).length,
           createdAt: now,
           lastOpenedAt: now,
@@ -342,6 +419,7 @@ export function addBook(name: string, text: string | string[]): boolean {
     done: [],
     skipped: [],
     frontier: 0,
+    attempts: [],
     wordCount: splitWords(joined).length,
     createdAt: shelf[name]?.createdAt ?? now,
     lastOpenedAt: now,
@@ -414,34 +492,99 @@ export function settleRound(name: string, start: number, end: number): boolean {
   return save(shelf);
 }
 
+/* ---- attempts: typing a stretch again ---------------------------------- *
+ * WORKORDER 进度模型 v3 (2026-08-14). None of this touches `done`, `skipped` or
+ * `frontier` — typing a stretch a second time is a thing that happened, not a
+ * change to how much of the book has been read. Between 2026-08-05 and this
+ * date refresh did take the round back out of `done`; that is gone, and the
+ * percentage now only ever moves for `settleRound` and `resetProgress`.       */
+
+function sameRange(a: Range, b: Range): boolean {
+  return a[0] === b[0] && a[1] === b[1];
+}
+
+function isFinished(attempt: Attempt): boolean {
+  return attempt.finishedAt !== undefined;
+}
+
 /**
- * Takes a stretch back out of what has been read — the refresh button on the
- * typing page (WORKORDER 进度模型 v2「refresh = 重打这一段」). Those words go
- * grey again, drop out of the percentage, and come back as something to retype.
- *
- * The frontier deliberately stays where it was: without that, undoing the
- * furthest stretch would pull the frontier back with it and the hole would
- * vanish instead of turning into a pill.
+ * Drops the least useful records once a stretch — or the book — holds more than
+ * it should. A finished attempt is a souvenir; an unfinished one is somewhere
+ * the reader can still pick up, so finished ones go first and oldest first.
+ * The attempt just written is never the one dropped: resuming a long-abandoned
+ * pass and finishing it would otherwise delete it on the spot for being both
+ * finished and the oldest of its group.
  */
-export function unsettleRange(name: string, range: Range): boolean {
+function capAttempts(attempts: Attempt[], justSaved: Attempt): Attempt[] {
+  const evictionOrder = (candidates: Attempt[], excess: number): string[] =>
+    // nothing over the limit means nothing to drop — and `excess` has to be
+    // stopped here rather than left to `slice`, which reads a negative end as
+    // "count back from the end" and would happily throw away most of the list
+    excess <= 0
+      ? []
+      : candidates
+          .filter((attempt) => attempt.id !== justSaved.id)
+          .sort(
+            (a, b) =>
+              Number(isFinished(b)) - Number(isFinished(a)) ||
+              a.startedAt - b.startedAt,
+          )
+          .slice(0, excess)
+          .map((attempt) => attempt.id);
+
+  const doomed = new Set<string>();
+
+  const group = attempts.filter((attempt) =>
+    sameRange(attempt.range, justSaved.range),
+  );
+  for (const id of evictionOrder(
+    group,
+    group.length - MAX_ATTEMPTS_PER_RANGE,
+  )) {
+    doomed.add(id);
+  }
+
+  const left = attempts.filter((attempt) => !doomed.has(attempt.id));
+  for (const id of evictionOrder(left, left.length - MAX_ATTEMPTS_PER_BOOK)) {
+    doomed.add(id);
+  }
+
+  return attempts.filter((attempt) => !doomed.has(attempt.id));
+}
+
+export function newAttemptId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Writes an attempt, replacing the one with the same `id`. The caller owns the
+ * running totals — `activeMs` is set, not added to — so saving the same pass
+ * twice cannot double its time.
+ */
+export function saveAttempt(name: string, attempt: Attempt): boolean {
   const shelf = readShelf();
   const book = shelf[name];
   if (book === undefined) return false;
 
-  const cut: Range = [
-    clampProgress(range[0], book.wordCount),
-    clampProgress(range[1], book.wordCount),
-  ];
-  if (cut[1] <= cut[0]) return false;
+  const others = book.attempts.filter((other) => other.id !== attempt.id);
+  book.attempts = capAttempts([...others, attempt], attempt);
+  return save(shelf);
+}
 
-  const remaining = subtractRange(book.done, cut);
-  // nothing there had been read — an ordinary restart, leave the book alone
-  if (rangeTotal(remaining) === rangeTotal(book.done)) return false;
+/**
+ * The ✗ on an attempt: forgets that pass and nothing else (user 2026-08-14
+ * 「点击 ✗,这个胶囊立刻消失,后台数据也随之消失」). The words themselves were
+ * already read, so the percentage does not move either way.
+ */
+export function deleteAttempt(name: string, id: string): boolean {
+  const shelf = readShelf();
+  const book = shelf[name];
+  if (book === undefined) return false;
 
-  book.done = normalizeRanges(remaining, book.wordCount);
-  // deciding to retype it undoes a previous ✗
-  book.skipped = subtractRange(book.skipped, cut);
+  const kept = book.attempts.filter((attempt) => attempt.id !== id);
+  if (kept.length === book.attempts.length) return false;
 
+  book.attempts = kept;
   return save(shelf);
 }
 
@@ -477,9 +620,9 @@ export function getRoundLength(book: Book): number {
 }
 
 /**
- * How far one press of an arrow moves, and how much of the book one refresh
- * hands back. A time round has no word count until it is typed, so it borrows
- * the default — same figure the arrows have always paged by.
+ * How far one press of an arrow moves. A time round has no word count until it
+ * is typed, so it borrows the default — same figure the arrows have always
+ * paged by.
  */
 export function getRoundStep(book: Book): number {
   return book.roundMode === "words"
@@ -497,6 +640,8 @@ export function resetProgress(name: string): boolean {
   book.done = [];
   book.skipped = [];
   book.frontier = 0;
+  // the records point at stretches that are about to stop being read at all
+  book.attempts = [];
   return save(shelf);
 }
 
@@ -519,9 +664,8 @@ export function getDoneWordCount(book: Book): number {
 
 /**
  * The furthest word the reader has ever reached. Only `resetProgress` moves it
- * backwards — not the arrows (that was the reported bug) and not refresh
- * (which leaves a hole behind on purpose, and a hole past the frontier would
- * be invisible).
+ * backwards — not the arrows (that was the reported bug), and not retyping a
+ * stretch, which records an attempt and leaves the reading alone.
  */
 export function getFrontier(book: Book): number {
   return Math.max(book.frontier, book.done.at(-1)?.[1] ?? 0);
@@ -566,6 +710,79 @@ export function getRangePreview(book: Book, [start, end]: Range): string {
   return splitWords(book.text)
     .slice(start, Math.min(start + 3, end))
     .join(" ");
+}
+
+/**
+ * The settled run the cursor is standing in, if it is standing in one. The end
+ * of a run does not count as inside it: with `[0, 100)` read, word 100 is the
+ * next unread word, not the last read one.
+ */
+function getSettledRunAt(book: Book, cursor: number): Range | undefined {
+  return book.done.find(([start, end]) => cursor >= start && cursor < end);
+}
+
+/**
+ * The stretch that typing here would go over again, or `undefined` when the
+ * cursor is on unread text and typing means ordinary progress.
+ *
+ * **The end of the settled run is a hard stop** (user decision 2026-08-14:
+ * 「打完上次打得就停吧」). Asking for 50 words on a 25-word stretch types 25 and
+ * ends there. Two reasons it cannot just run on: an attempt has to cover the
+ * same words as the one before it or "how far did I get last time" compares
+ * nothing, and a round that is half retype and half new reading would have to
+ * settle a muddle.
+ */
+export function getRetypeRange(book: Book): Range | undefined {
+  const run = getSettledRunAt(book, book.progress);
+  if (run === undefined) return undefined;
+
+  // a time round has no length of its own: the clock stops it early, the end of
+  // the run stops it late
+  const wanted =
+    book.roundMode === "words" ? book.progress + book.roundWords : run[1];
+
+  return [book.progress, Math.min(wanted, run[1])];
+}
+
+/** was this pass left partway through, and so somewhere to go back to? */
+export function isAttemptFinished(attempt: Attempt): boolean {
+  return isFinished(attempt);
+}
+
+/**
+ * Attempts touching a stretch, oldest first — which is the order they are
+ * numbered in, so the badge reads 1, 2, 3 in the order they were typed.
+ */
+export function getAttemptsOverlapping(
+  book: Book,
+  [start, end]: Range,
+): Attempt[] {
+  return book.attempts
+    .filter((attempt) => attempt.range[0] < end && attempt.range[1] > start)
+    .sort((a, b) => a.startedAt - b.startedAt);
+}
+
+/** every pass left partway through — the ones with somewhere to go back to */
+export function getUnfinishedAttempts(book: Book): Attempt[] {
+  return book.attempts
+    .filter((attempt) => !isFinished(attempt))
+    .sort((a, b) => a.startedAt - b.startedAt);
+}
+
+export function getFinishedAttempts(book: Book): Attempt[] {
+  return book.attempts
+    .filter(isFinished)
+    .sort((a, b) => a.startedAt - b.startedAt);
+}
+
+/**
+ * What is left on the clock of a paused time attempt. Away time is not spent
+ * time: a 15 second round paused after 9 seconds comes back with 6, whether
+ * that is a minute later or next week.
+ */
+export function getAttemptRemainingMs(attempt: Attempt): number | undefined {
+  if (attempt.limit.mode !== "time") return undefined;
+  return Math.max(0, attempt.limit.value * 1000 - attempt.activeMs);
 }
 
 /** the white share of the book — WORKORDER「百分比 = 白字 ÷ 全书词数」 */

@@ -115,60 +115,200 @@ describe("local-books progress model", () => {
     });
   });
 
-  // "refresh 当前打字界面:让这个打字界面变灰" — the refresh button means
-  // "I am doing this bit again", not "nothing happened"
-  describe("handing a stretch back with refresh", () => {
+  /**
+   * WORKORDER 进度模型 v3 (user 2026-08-14): going over a stretch again is a
+   * record of how it went, never a change to how much of the book has been
+   * read. Everything here is really one assertion in different clothes —
+   * *nothing a retype does may move the percentage*.
+   */
+  describe("retyping a stretch already read", () => {
+    /** four rounds of 25, so the reader stands inside white text at 75 */
     beforeEach(() => {
+      LocalBooks.setRound(NAME, { roundMode: "words", roundWords: 25 });
       LocalBooks.settleRound(NAME, 0, 100);
+      LocalBooks.setCursor(NAME, 75);
     });
 
-    it("takes those words out of the white count", () => {
-      expect(LocalBooks.unsettleRange(NAME, [75, 100])).toBe(true);
+    function attempt(
+      over: Partial<LocalBooks.Attempt> = {},
+    ): LocalBooks.Attempt {
+      return {
+        id: LocalBooks.newAttemptId(),
+        range: [75, 100],
+        limit: { mode: "words", value: 25 },
+        typedWords: 25,
+        activeMs: 30_000,
+        startedAt: Date.now(),
+        ...over,
+      };
+    }
 
-      expect(book().done).toEqual([[0, 75]]);
-      expect(LocalBooks.getDoneWordCount(book())).toBe(75);
+    it("knows the cursor is standing on text already read", () => {
+      expect(LocalBooks.getRetypeRange(book())).toEqual([75, 100]);
     });
 
-    it("leaves the hole visible even at the very end of what was read", () => {
-      LocalBooks.unsettleRange(NAME, [75, 100]);
-
-      // the frontier is a high-water mark: without it the hole would fall
-      // outside "already reached" and quietly stop being a gap
-      expect(LocalBooks.getFrontier(book())).toBe(100);
-      expect(LocalBooks.getGaps(book())).toEqual([[75, 100]]);
+    it("treats unread text as ordinary progress, not a retype", () => {
+      LocalBooks.setCursor(NAME, 100);
+      expect(LocalBooks.getRetypeRange(book())).toBeUndefined();
     });
 
-    it("does nothing to a round that was never read", () => {
-      expect(LocalBooks.unsettleRange(NAME, [120, 145])).toBe(false);
+    // 「打完上次打得就停吧」 — asking for 50 words over a 25-word stretch types
+    // 25 and settles there rather than running on into unread text
+    it("stops a longer round at the end of what was read before", () => {
+      LocalBooks.setRound(NAME, { roundMode: "words", roundWords: 50 });
+      expect(LocalBooks.getRetypeRange(book())).toEqual([75, 100]);
+    });
+
+    it("gives a time round the whole run, and lets the clock stop it", () => {
+      LocalBooks.setRound(NAME, { roundMode: "time", roundSeconds: 15 });
+      LocalBooks.setCursor(NAME, 10);
+      expect(LocalBooks.getRetypeRange(book())).toEqual([10, 100]);
+    });
+
+    it("leaves the reading alone however many times it is typed", () => {
+      for (let pass = 0; pass < 3; pass++) {
+        LocalBooks.saveAttempt(NAME, attempt({ startedAt: 1000 + pass }));
+      }
+
       expect(book().done).toEqual([[0, 100]]);
-    });
-
-    it("splits a stretch when the retype is in the middle of it", () => {
-      LocalBooks.unsettleRange(NAME, [25, 50]);
-
-      expect(book().done).toEqual([
-        [0, 25],
-        [50, 100],
-      ]);
-      expect(LocalBooks.getGaps(book())).toEqual([[25, 50]]);
-    });
-
-    it("closes again once that stretch is typed", () => {
-      LocalBooks.unsettleRange(NAME, [75, 100]);
-      LocalBooks.settleRound(NAME, 75, 100);
-
-      expect(book().done).toEqual([[0, 100]]);
-      expect(LocalBooks.getGaps(book())).toEqual([]);
       expect(LocalBooks.getProgressPercentage(book())).toBe(50);
+      expect(LocalBooks.getGaps(book())).toEqual([]);
+      expect(LocalBooks.getFrontier(book())).toBe(100);
     });
 
-    it("undoes a ✗ — asking to retype it means you want it back", () => {
-      LocalBooks.unsettleRange(NAME, [75, 100]);
-      LocalBooks.dismissGap(NAME, [75, 100]);
-      expect(LocalBooks.getGaps(book())).toEqual([]);
+    it("numbers passes in the order they were typed", () => {
+      const first = attempt({ startedAt: 3000 });
+      const second = attempt({ startedAt: 1000 });
+      LocalBooks.saveAttempt(NAME, first);
+      LocalBooks.saveAttempt(NAME, second);
 
-      LocalBooks.unsettleRange(NAME, [50, 100]);
-      expect(LocalBooks.getGaps(book())).toEqual([[50, 100]]);
+      expect(
+        LocalBooks.getAttemptsOverlapping(book(), [75, 100]).map((a) => a.id),
+      ).toEqual([second.id, first.id]);
+    });
+
+    it("shows a pass to a window that only overlaps it", () => {
+      LocalBooks.saveAttempt(NAME, attempt());
+
+      expect(LocalBooks.getAttemptsOverlapping(book(), [90, 120])).toHaveLength(
+        1,
+      );
+      // touching end to end is not overlapping: [75,100) and [100,125) share
+      // no word
+      expect(LocalBooks.getAttemptsOverlapping(book(), [100, 125])).toEqual([]);
+    });
+
+    it("updates a pass in place when it is resumed, not clones it", () => {
+      const paused = attempt({ typedWords: 10, activeMs: 9_000 });
+      LocalBooks.saveAttempt(NAME, paused);
+      LocalBooks.saveAttempt(NAME, {
+        ...paused,
+        typedWords: 25,
+        activeMs: 21_000,
+        finishedAt: Date.now(),
+      });
+
+      const all = LocalBooks.getAttemptsOverlapping(book(), [75, 100]);
+      expect(all).toHaveLength(1);
+      // set, not added to: saving twice must not double the time
+      expect(all[0]?.activeMs).toBe(21_000);
+      expect(LocalBooks.isAttemptFinished(all[0] as LocalBooks.Attempt)).toBe(
+        true,
+      );
+    });
+
+    it("hands a paused time round back the seconds it had left", () => {
+      const paused = attempt({
+        limit: { mode: "time", value: 15 },
+        activeMs: 9_000,
+      });
+
+      expect(LocalBooks.getAttemptRemainingMs(paused)).toBe(6_000);
+      // a word round has no clock to hand back
+      expect(LocalBooks.getAttemptRemainingMs(attempt())).toBeUndefined();
+    });
+
+    it("separates passes to go back to from passes already done", () => {
+      const open = attempt({ typedWords: 8, startedAt: 1000 });
+      LocalBooks.saveAttempt(NAME, open);
+      LocalBooks.saveAttempt(
+        NAME,
+        attempt({ startedAt: 2000, finishedAt: 3000 }),
+      );
+
+      expect(LocalBooks.getUnfinishedAttempts(book()).map((a) => a.id)).toEqual(
+        [open.id],
+      );
+      expect(LocalBooks.getFinishedAttempts(book())).toHaveLength(1);
+    });
+
+    // 「点击 ✗,这个胶囊立刻消失,后台数据也随之消失」
+    it("forgets a pass on ✗, and still not a word of the reading", () => {
+      const doomed = attempt();
+      LocalBooks.saveAttempt(NAME, doomed);
+
+      expect(LocalBooks.deleteAttempt(NAME, doomed.id)).toBe(true);
+      expect(book().attempts).toEqual([]);
+      expect(LocalBooks.getDoneWordCount(book())).toBe(100);
+      // and a second ✗ on the same one is not an error, just nothing
+      expect(LocalBooks.deleteAttempt(NAME, doomed.id)).toBe(false);
+    });
+
+    it("keeps only the last ten passes over one stretch", () => {
+      for (let pass = 0; pass < 14; pass++) {
+        LocalBooks.saveAttempt(
+          NAME,
+          attempt({ startedAt: 1000 + pass, finishedAt: 2000 + pass }),
+        );
+      }
+
+      const kept = LocalBooks.getAttemptsOverlapping(book(), [75, 100]);
+      expect(kept).toHaveLength(LocalBooks.MAX_ATTEMPTS_PER_RANGE);
+      // the oldest went, the newest stayed
+      expect(kept[0]?.startedAt).toBe(1004);
+      expect(kept.at(-1)?.startedAt).toBe(1013);
+    });
+
+    it("drops a souvenir before somewhere it can still go back to", () => {
+      const unfinished = attempt({ startedAt: 1, typedWords: 3 });
+      LocalBooks.saveAttempt(NAME, unfinished);
+      for (let pass = 0; pass < 12; pass++) {
+        LocalBooks.saveAttempt(
+          NAME,
+          attempt({ startedAt: 1000 + pass, finishedAt: 2000 + pass }),
+        );
+      }
+
+      // oldest of the lot, but the only one with anywhere left to go
+      expect(LocalBooks.getUnfinishedAttempts(book()).map((a) => a.id)).toEqual(
+        [unfinished.id],
+      );
+    });
+
+    it("never evicts the pass just written, however old it is", () => {
+      const ancient = attempt({ startedAt: 1 });
+      LocalBooks.saveAttempt(NAME, ancient);
+      for (let pass = 0; pass < 9; pass++) {
+        LocalBooks.saveAttempt(
+          NAME,
+          attempt({ startedAt: 1000 + pass, finishedAt: 2000 + pass }),
+        );
+      }
+
+      // resuming the oldest pass and finishing it must not delete it for being
+      // both finished and the oldest
+      LocalBooks.saveAttempt(NAME, { ...ancient, finishedAt: 9999 });
+
+      expect(
+        LocalBooks.getAttemptsOverlapping(book(), [75, 100]).map((a) => a.id),
+      ).toContain(ancient.id);
+    });
+
+    it("wipes the records on reset, along with everything else", () => {
+      LocalBooks.saveAttempt(NAME, attempt());
+      LocalBooks.resetProgress(NAME);
+
+      expect(book().attempts).toEqual([]);
     });
   });
 
@@ -237,6 +377,40 @@ describe("migrating a book from before the split", () => {
     expect(migrated?.frontier).toBe(60);
     // nobody loses a percentage point to the upgrade
     expect(Books.getProgressPercentage(migrated as LocalBooks.Book)).toBe(30);
+  });
+
+  it("starts a book from before v3 with no retype records", async () => {
+    window.localStorage.setItem(
+      "customTextLong",
+      JSON.stringify({ old: { text: TEXT, progress: 60, wordCount: 200 } }),
+    );
+
+    const Books = await import("../../src/ts/books/local-books");
+
+    expect(Books.getBook("old")?.attempts).toEqual([]);
+  });
+
+  // a record is worth less than the book it hangs off: garbage in `attempts`
+  // must cost the reader the records, never the text
+  it("keeps the book when a stored attempt is malformed", async () => {
+    window.localStorage.setItem(
+      "customTextLong",
+      JSON.stringify({
+        old: {
+          text: TEXT,
+          progress: 60,
+          wordCount: 200,
+          attempts: [{ id: "x", range: "not a range" }],
+        },
+      }),
+    );
+
+    const Books = await import("../../src/ts/books/local-books");
+    const migrated = Books.getBook("old");
+
+    expect(migrated?.text).toBe(TEXT);
+    expect(migrated?.done).toEqual([[0, 60]]);
+    expect(migrated?.attempts).toEqual([]);
   });
 
   it("leaves an untouched book at zero rather than inventing a range", async () => {

@@ -394,10 +394,11 @@ async function updateHintsPosition(): Promise<void> {
 /**
  * Re-marks the words on screen as read / unread without rebuilding them.
  *
- * Restarting with the same word set does not re-run `buildWordHTML`, so handing
- * a stretch back with the refresh button left it still painted white until
- * something else forced a render — the reader pressed refresh and saw nothing
- * happen (reported 2026-08-05). See WORKORDER 进度模型 v2「refresh = 重打这一段」.
+ * Needed because restarting with the same word set does not re-run
+ * `buildWordHTML`: the elements are reused, so a change of mind about what is
+ * white never reaches the screen on its own. That cost a whole round once —
+ * the data was right, the words stayed white, and from the reader's side the
+ * feature simply did not work (reported 2026-08-05).
  */
 export function updateSettledWords(): void {
   const wordElements = qsa("#words .word");
