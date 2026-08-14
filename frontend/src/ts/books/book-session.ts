@@ -222,6 +222,7 @@ export type RoundOutcome =
 export function settleRound(
   name: string,
   completedWords: number,
+  complete: boolean,
 ): RoundOutcome | undefined {
   const before = LocalBooks.getBook(name);
   if (before === undefined) return undefined;
@@ -230,6 +231,7 @@ export function settleRound(
     name,
     before.progress,
     before.progress + completedWords,
+    complete,
   );
 
   const settled = LocalBooks.getBook(name);

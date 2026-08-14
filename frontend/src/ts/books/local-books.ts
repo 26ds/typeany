@@ -32,6 +32,13 @@ export const MAX_ATTEMPTS_PER_RANGE = 10;
 /** and a ceiling across the whole book, for a reader who retypes everywhere */
 export const MAX_ATTEMPTS_PER_BOOK = 100;
 
+/**
+ * How many round boundaries a book keeps. Enough for a very long book read in
+ * small rounds; past it the oldest go, which costs nothing but the ability to
+ * retype those old rounds as fixed blocks — the reading itself is in `done`.
+ */
+export const MAX_BLOCKS = 1000;
+
 /** how long one round of this book is — WORKORDER 回合设置, per book */
 export const ROUND_WORD_OPTIONS = [25, 50, 100, 200] as const;
 export const ROUND_TIME_OPTIONS = [15, 30, 60, 120] as const;
@@ -47,6 +54,23 @@ const RangeSchema = z.tuple([
   z.number().int().nonnegative(),
 ]);
 export type Range = z.infer<typeof RangeSchema>;
+
+/**
+ * One settled round, kept in the order it happened and **never merged** —
+ * WORKORDER 进度模型 v3「模块(block)」.
+ *
+ * `done` merges everything that touches, which is right for "how much of this
+ * book have I read" and useless for "where did the last round end". Without
+ * these boundaries there is no way to tell a round typed to the full 25 words
+ * from one abandoned after 9, and the reader gets sent back to retype half a
+ * round they never asked to do again (reported 2026-08-14).
+ */
+const BlockSchema = z.object({
+  range: RangeSchema,
+  /** typed to the end of its target: the full word count, or the clock ran out */
+  complete: z.boolean(),
+});
+export type Block = z.infer<typeof BlockSchema>;
 
 /** enough of a finished attempt to rebuild its result screen */
 const AttemptStatsSchema = z.object({
@@ -133,6 +157,8 @@ const StoredBookSchema = z.object({
    * back" feature could ever hang.
    */
   frontier: z.number().int().nonnegative(),
+  /** every settled round, in order, unmerged — see `BlockSchema` */
+  blocks: z.array(BlockSchema),
   /** passes over stretches already read — see `AttemptSchema` */
   attempts: z.array(AttemptSchema),
   wordCount: z.number().int().nonnegative(),
@@ -160,6 +186,7 @@ const LegacyBookSchema = z.object({
   // the book it is attached to, and the whole point of the migration path is
   // that it never drops text
   attempts: z.array(AttemptSchema).catch([]).optional(),
+  blocks: z.array(BlockSchema).catch([]).optional(),
   wordCount: z.number().nonnegative().optional(),
   createdAt: z.number().nonnegative().optional(),
   lastOpenedAt: z.number().nonnegative().optional(),
@@ -287,6 +314,10 @@ function migrateShelf(oldData: Record<string, unknown> | unknown[]): Bookshelf {
         wordCount,
       ),
       attempts: parsed.data.attempts ?? [],
+      // A book from before the boundaries existed has none to recover. An empty
+      // list reads as "no complete block behind me", which lands a resume on the
+      // leftoff word — never on words the reader would have to type twice.
+      blocks: parsed.data.blocks ?? [],
       wordCount,
       createdAt: parsed.data.createdAt ?? now,
       lastOpenedAt: parsed.data.lastOpenedAt ?? now,
@@ -340,6 +371,7 @@ function importLegacyShortTexts(): void {
           skipped: [],
           frontier: 0,
           attempts: [],
+          blocks: [],
           wordCount: splitWords(text).length,
           createdAt: now,
           lastOpenedAt: now,
@@ -420,6 +452,7 @@ export function addBook(name: string, text: string | string[]): boolean {
     skipped: [],
     frontier: 0,
     attempts: [],
+    blocks: [],
     wordCount: splitWords(joined).length,
     createdAt: shelf[name]?.createdAt ?? now,
     lastOpenedAt: now,
@@ -471,7 +504,12 @@ export function setCursor(name: string, cursor: number): boolean {
  * whether it ran out of words or the reader stopped it with shift+enter.
  * Restarting with the refresh button settles nothing.
  */
-export function settleRound(name: string, start: number, end: number): boolean {
+export function settleRound(
+  name: string,
+  start: number,
+  end: number,
+  complete: boolean,
+): boolean {
   const shelf = readShelf();
   const book = shelf[name];
   if (book === undefined) return false;
@@ -483,6 +521,11 @@ export function settleRound(name: string, start: number, end: number): boolean {
   // nothing was typed — leave the cursor where the reader left it
   if (settled[1] <= settled[0]) return true;
 
+  // the boundary goes in unmerged: `done` answers "how much", this answers
+  // "where did that round start and did it finish"
+  book.blocks = [...book.blocks, { range: settled, complete }].slice(
+    -MAX_BLOCKS,
+  );
   book.done = normalizeRanges([...book.done, settled], book.wordCount);
   // going back and typing a stretch you had dismissed means you want it back
   book.skipped = subtractRange(book.skipped, settled);
@@ -642,6 +685,7 @@ export function resetProgress(name: string): boolean {
   book.frontier = 0;
   // the records point at stretches that are about to stop being read at all
   book.attempts = [];
+  book.blocks = [];
   return save(shelf);
 }
 
@@ -698,11 +742,26 @@ export function getGaps(book: Book): Range[] {
  * them on new text (WORKORDER 进度模型 v2「回到进度」).
  */
 export function getLastFinishedStart(book: Book): number {
-  const doneEnd = getDoneEnd(book);
-  if (doneEnd === 0) return 0;
+  const lastBlock = book.blocks.at(-1);
 
-  const lastRunStart = book.done.at(-1)?.[0] ?? 0;
-  return Math.max(lastRunStart, doneEnd - getRoundStep(book));
+  if (lastBlock !== undefined) {
+    // A round left unfinished is not somewhere to go *back* to — it is where the
+    // reader stopped. Landing on its start would make them retype the half they
+    // just did, which is exactly what they reported on 2026-08-14. Land on the
+    // word after it and let them carry on.
+    return lastBlock.complete ? lastBlock.range[0] : lastBlock.range[1];
+  }
+
+  // a book read before the boundaries existed: the end of the reading is always
+  // safe, because it never asks anyone to type the same words twice
+  return getDoneEnd(book);
+}
+
+/** the block the cursor is standing in, most recent first */
+function getBlockAt(book: Book, cursor: number): Block | undefined {
+  return book.blocks
+    .filter(({ range }) => cursor >= range[0] && cursor < range[1])
+    .at(-1);
 }
 
 /** the first few words of a range, for a gap pill's label */
@@ -713,35 +772,33 @@ export function getRangePreview(book: Book, [start, end]: Range): string {
 }
 
 /**
- * The settled run the cursor is standing in, if it is standing in one. The end
- * of a run does not count as inside it: with `[0, 100)` read, word 100 is the
- * next unread word, not the last read one.
- */
-function getSettledRunAt(book: Book, cursor: number): Range | undefined {
-  return book.done.find(([start, end]) => cursor >= start && cursor < end);
-}
-
-/**
- * The stretch that typing here would go over again, or `undefined` when the
- * cursor is on unread text and typing means ordinary progress.
+ * The stretch that typing here would go over again, or `undefined` when typing
+ * here means ordinary progress.
  *
- * **The end of the settled run is a hard stop** (user decision 2026-08-14:
- * 「打完上次打得就停吧」). Asking for 50 words on a 25-word stretch types 25 and
- * ends there. Two reasons it cannot just run on: an attempt has to cover the
- * same words as the one before it or "how far did I get last time" compares
- * nothing, and a round that is half retype and half new reading would have to
- * settle a muddle.
+ * **A retype is a whole round done again**, so it is bounded by the block the
+ * reader is standing in and only counts when that block was finished
+ * (user 2026-08-14「如果上次完成了一个模块的完整的…那就应该固定这些的打的字来
+ * 给予重打」). Standing on the tail of a round nobody finished is not a retype
+ * at all — there is nothing there to compare against, and the words still owe
+ * the reader ordinary progress.
+ *
+ * **The end of the block is a hard stop**(「打完上次打得就停吧」): asking for 50
+ * words over a 25-word block types 25 and ends there. A round that were half
+ * retype and half new reading would have to settle a muddle, and an attempt
+ * that covered different words each time would compare nothing.
  */
 export function getRetypeRange(book: Book): Range | undefined {
-  const run = getSettledRunAt(book, book.progress);
-  if (run === undefined) return undefined;
+  const block = getBlockAt(book, book.progress);
+  if (block === undefined || !block.complete) return undefined;
 
   // a time round has no length of its own: the clock stops it early, the end of
-  // the run stops it late
+  // the block stops it late
   const wanted =
-    book.roundMode === "words" ? book.progress + book.roundWords : run[1];
+    book.roundMode === "words"
+      ? book.progress + book.roundWords
+      : block.range[1];
 
-  return [book.progress, Math.min(wanted, run[1])];
+  return [book.progress, Math.min(wanted, block.range[1])];
 }
 
 /** was this pass left partway through, and so somewhere to go back to? */

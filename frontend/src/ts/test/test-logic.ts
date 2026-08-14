@@ -1020,7 +1020,14 @@ export async function finish(difficultyFailed = false): Promise<void> {
       }
     }
 
-    const outcome = BookSession.settleRound(customTextName, completedWords);
+    // A round that ran to its own end — the words ran out, or the clock did.
+    // Stopping early with shift+enter does not make a block: half a round is
+    // not a unit anyone should be sent back to retype (WORKORDER「模块」).
+    const outcome = BookSession.settleRound(
+      customTextName,
+      completedWords,
+      !getBailedOut(),
+    );
 
     if (outcome !== undefined) {
       if (outcome.kind === "book-finished") {

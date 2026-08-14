@@ -37,8 +37,8 @@ describe("local-books progress model", () => {
   });
 
   it("merges rounds that run into each other", () => {
-    LocalBooks.settleRound(NAME, 0, 25);
-    LocalBooks.settleRound(NAME, 25, 50);
+    LocalBooks.settleRound(NAME, 0, 25, true);
+    LocalBooks.settleRound(NAME, 25, 50, true);
 
     // two rounds of one unbroken read, not two ranges with a seam
     expect(book().done).toEqual([[0, 50]]);
@@ -48,12 +48,12 @@ describe("local-books progress model", () => {
   });
 
   it("parks the cursor at the end of the round it settled", () => {
-    LocalBooks.settleRound(NAME, 0, 25);
+    LocalBooks.settleRound(NAME, 0, 25, true);
     expect(book().progress).toBe(25);
   });
 
   it("counts only settled words, not how far the cursor got", () => {
-    LocalBooks.settleRound(NAME, 0, 25);
+    LocalBooks.settleRound(NAME, 0, 25, true);
     LocalBooks.setCursor(NAME, 150);
 
     expect(LocalBooks.getDoneWordCount(book())).toBe(25);
@@ -63,7 +63,7 @@ describe("local-books progress model", () => {
   // the bug the user reported on 2026-08-04: paging back with the ← arrow shrank
   // the percentage, and paging back to the start wiped the book
   it("never lets the cursor shrink what has been read", () => {
-    LocalBooks.settleRound(NAME, 0, 100);
+    LocalBooks.settleRound(NAME, 0, 100, true);
     const before = LocalBooks.getProgressPercentage(book());
 
     for (const cursor of [75, 50, 25, 0]) {
@@ -75,9 +75,9 @@ describe("local-books progress model", () => {
   });
 
   it("reports a skipped stretch as a gap behind the frontier", () => {
-    LocalBooks.settleRound(NAME, 0, 25);
+    LocalBooks.settleRound(NAME, 0, 25, true);
     LocalBooks.setCursor(NAME, 100);
-    LocalBooks.settleRound(NAME, 100, 125);
+    LocalBooks.settleRound(NAME, 100, 125, true);
 
     expect(book().done).toEqual([
       [0, 25],
@@ -91,9 +91,9 @@ describe("local-books progress model", () => {
 
   describe("dismissing a gap with ✗", () => {
     beforeEach(() => {
-      LocalBooks.settleRound(NAME, 0, 25);
+      LocalBooks.settleRound(NAME, 0, 25, true);
       LocalBooks.setCursor(NAME, 100);
-      LocalBooks.settleRound(NAME, 100, 125);
+      LocalBooks.settleRound(NAME, 100, 125, true);
     });
 
     // user decision 2026-08-04: ✗ stops the nagging and nothing else
@@ -107,7 +107,7 @@ describe("local-books progress model", () => {
 
     it("takes the dismissal back once that stretch is actually typed", () => {
       LocalBooks.dismissGap(NAME, [25, 100]);
-      LocalBooks.settleRound(NAME, 25, 50);
+      LocalBooks.settleRound(NAME, 25, 50, true);
 
       expect(book().skipped).toEqual([[50, 100]]);
       expect(LocalBooks.getGaps(book())).toEqual([]);
@@ -125,7 +125,7 @@ describe("local-books progress model", () => {
     /** four rounds of 25, so the reader stands inside white text at 75 */
     beforeEach(() => {
       LocalBooks.setRound(NAME, { roundMode: "words", roundWords: 25 });
-      LocalBooks.settleRound(NAME, 0, 100);
+      LocalBooks.settleRound(NAME, 0, 100, true);
       LocalBooks.setCursor(NAME, 75);
     });
 
@@ -312,10 +312,71 @@ describe("local-books progress model", () => {
     });
   });
 
+  /**
+   * WORKORDER 进度模型 v3「模块(block)」. The user typed 9 words of a 15-second
+   * round, stopped, and pressing a key put them back at the *start* of those 9
+   * words instead of after them (reported 2026-08-14). `done` merges, so the
+   * boundary of a round only exists if it is stored.
+   */
+  describe("where a resume lands", () => {
+    it("goes back to the start of a round that was finished", () => {
+      LocalBooks.settleRound(NAME, 0, 25, true);
+      LocalBooks.settleRound(NAME, 25, 50, true);
+
+      // the two merged into [0,50) in `done`, but the round is still its own
+      // unit: land on it all in white, one → away from new text
+      expect(LocalBooks.getLastFinishedStart(book())).toBe(25);
+    });
+
+    it("carries on from where a round was abandoned", () => {
+      LocalBooks.settleRound(NAME, 0, 25, true);
+      LocalBooks.settleRound(NAME, 25, 34, false);
+
+      // not the start of the half-round — that is the reported bug
+      expect(LocalBooks.getLastFinishedStart(book())).toBe(34);
+    });
+
+    it("never asks a book from before the boundaries to retype anything", () => {
+      // no blocks recorded at all: the safe landing is the end of the reading
+      LocalBooks.setCursor(NAME, 60);
+      expect(LocalBooks.getLastFinishedStart(book())).toBe(0);
+    });
+
+    it("keeps each round separate even when the reading merges", () => {
+      LocalBooks.settleRound(NAME, 0, 25, true);
+      LocalBooks.settleRound(NAME, 25, 50, true);
+
+      expect(book().done).toEqual([[0, 50]]);
+      expect(book().blocks).toEqual([
+        { range: [0, 25], complete: true },
+        { range: [25, 50], complete: true },
+      ]);
+    });
+
+    it("will not retype the tail of a round nobody finished", () => {
+      LocalBooks.settleRound(NAME, 0, 9, false);
+      LocalBooks.setCursor(NAME, 0);
+
+      // those words are read, but half a round is not a unit to redo — typing
+      // here is ordinary progress
+      expect(LocalBooks.getRetypeRange(book())).toBeUndefined();
+    });
+
+    it("stops the boundary list growing without bound", () => {
+      for (let i = 0; i < LocalBooks.MAX_BLOCKS + 5; i++) {
+        LocalBooks.settleRound(NAME, 0, 1, true);
+      }
+
+      expect(book().blocks).toHaveLength(LocalBooks.MAX_BLOCKS);
+      // and the reading is untouched by the eviction
+      expect(LocalBooks.getDoneWordCount(book())).toBe(1);
+    });
+  });
+
   it("sends 'back to my progress' to the start of the last finished round", () => {
     LocalBooks.setRound(NAME, { roundMode: "words", roundWords: 25 });
-    LocalBooks.settleRound(NAME, 0, 25);
-    LocalBooks.settleRound(NAME, 25, 50);
+    LocalBooks.settleRound(NAME, 0, 25, true);
+    LocalBooks.settleRound(NAME, 25, 50, true);
 
     // the two rounds merged into [0,50), but the reader wants the last round
     // back — all white, one → away from new text
@@ -324,7 +385,7 @@ describe("local-books progress model", () => {
   });
 
   it("clamps anything past the end of the book", () => {
-    LocalBooks.settleRound(NAME, 190, 500);
+    LocalBooks.settleRound(NAME, 190, 500, true);
 
     expect(book().done).toEqual([[190, 200]]);
     expect(LocalBooks.getDoneWordCount(book())).toBe(10);
@@ -332,14 +393,14 @@ describe("local-books progress model", () => {
 
   it("ignores a round in which nothing was typed", () => {
     LocalBooks.setCursor(NAME, 40);
-    LocalBooks.settleRound(NAME, 40, 40);
+    LocalBooks.settleRound(NAME, 40, 40, true);
 
     expect(book().done).toEqual([]);
     expect(book().progress).toBe(40);
   });
 
   it("wipes everything on reset, the one backwards move there is", () => {
-    LocalBooks.settleRound(NAME, 0, 50);
+    LocalBooks.settleRound(NAME, 0, 50, true);
     LocalBooks.dismissGap(NAME, [50, 60]);
     LocalBooks.resetProgress(NAME);
 
