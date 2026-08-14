@@ -107,4 +107,12 @@
 - **一个真被测试抓住的 bug**:淘汰函数写成 `slice(0, excess)`,`excess` 为负时 JS 把它当"从末尾倒数",于是每存到第 6 条就误删一条、总数永远停在 5。补了 `excess <= 0` 直接返回空。这条断言是先红后绿的(实测 `expected 10, got 5`)
 - **验证**:ts-check ✅ / lint(type-aware)✅ / vitest 1077 passed(books 32 条,新增 19 条)✅ / build ✅
 - **已知问题/未完**:徽章、回看滚动、战绩页、ESC 暂停都还没有界面 —— 分别在 M3g / M3i
+- **线上复验**(https://typeany.vercel.app,2026-08-14,种一本 200 词的探针书):
+  1. **先确认新包真上线**:抓全部 8 个 chunk,旧提示串 `back on your retype list`(M3c-fix 那条 toast)与 `restart this round anyway` **都已消失**,而 `Parts you have not finished`、✗ 说明文案仍在 —— 证明抓到的是新包不是空响应(不比 hash,Vercel 与本地构建环境不同,hash 永远对不上)
+  2. **refresh 不再收回这一段**:`done [[0,100]]`、光标 75(站在白字里),进书 → w75–w99 全白(实测 `rgb(238,248,241)`);点 refresh → `done` 仍 `[[0,100]]`、frontier 100、25/25 个词仍带 `.settled`、无任何提示。**旧版本这里会变成 `[[0,75]]` + 变灰 + 掉百分比**
+  3. **点击确实到达了按钮**:埋了一次性监听,`onButton:1` 且冒泡到 `.pageTest`(应用自己挂处理器的那个节点)各 1 次 —— 否则"什么都没变"不能算证据
+  4. **缺口 >6 不再劫持 refresh**:改成 8 段已读 / 7 个洞(书卡显示 `40 / 200 words · 20%` + 6 个胶囊 + `+1 more unfinished`),进书点 refresh → **没有弹窗**(`openModals: []`),只是重开;正文白灰图案 `.....WWWWW.....WWWWW.....` 与 `done` 完全对应
+  5. **书架 `+N` 仍能开那个窗**:7 个胶囊 + ✗ + 说明文案都在,底部只剩「back to my progress」(改过布局,确认没改坏)
+  6. 探针书与 `typeanyActiveBook` 已从 localStorage 删除
+- **顺带发现(不是本片引入)**:浏览器直接打开 `/test` 不会恢复书籍模式,落在 Random 的 custom 上 —— 书籍模式只能从书架进。整页刷新不会跑 `endBookSession`,`typeanyActiveBook` 还在但页面不认。记在这里备查,M3g 若要做"回到上次那本书"会撞上它
 - **下一步**:M3g(打字页回看 + 重打徽章,连带 M3d 续打白显上一个词)
